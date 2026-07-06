@@ -1,0 +1,17 @@
+{
+  "ok": 1,
+  "data": {
+    "realtime": [
+      {"word": "人工智能新突破", "num": 9876543, "label_name": "热"},
+      {"word": "A股市场行情", "num": 5432100, "label_name": ""},
+      {"word": "新能源汽车销量创新高", "num": 3210987, "label_name": "沸"},
+      {"word": "春节档电影票房", "num": 2109876, "label_name": ""},
+      {"word": "房地产新政策", "num": 1987654, "label_name": "新"},
+      {"word": "中美关系最新进展", "num": 1765432, "label_name": ""},
+      {"word": "医疗改革方案", "num": 1543210, "label_name": ""},
+      {"word": "半导体行业动态", "num": 1321098, "label_name": ""},
+      {"word": "上市公司年报季", "num": 1109876, "label_name": ""},
+      {"word": "消费复苏信号", "num": 987654, "label_name": ""}
+    ]
+  }
+}

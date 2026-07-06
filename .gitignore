@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# Maven
+target/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Eclipse
+.settings/
+.classpath
+.project
+
+# NetBeans
+nbproject/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# Local AI assistant settings
+.claude/

@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html xmlns:th="https://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>技术指标分析 - 股票数据爬虫</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .navbar-brand { font-weight: bold; }
+        .signal-bullish { color: #dc3545; font-weight: bold; }
+        .signal-bearish { color: #198754; font-weight: bold; }
+        .signal-neutral { color: #6c757d; }
+        .indicator-group { border-left: 3px solid; padding-left: 1rem; }
+        .indicator-group.ma { border-color: #0d6efd; }
+        .indicator-group.macd { border-color: #fd7e14; }
+        .indicator-group.rsi { border-color: #6f42c1; }
+        .indicator-group.kdj { border-color: #20c997; }
+        .indicator-group.boll { border-color: #d63384; }
+        .indicator-group.volume { border-color: #0dcaf0; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">股票数据爬虫</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item"><a class="nav-link" href="/">首页</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle active" href="#" data-bs-toggle="dropdown">行情数据</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/quote">实时行情</a></li>
+                            <li><a class="dropdown-item" href="/kline">K线数据</a></li>
+                            <li><a class="dropdown-item active" href="/technical">技术分析</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">资讯热点</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/market-news">市场快讯</a></li>
+                            <li><a class="dropdown-item" href="/news">财经快讯</a></li>
+                            <li><a class="dropdown-item" href="/hot">舆情热点</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="/reports">研报查询</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/longhubang">龙虎榜</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/guba">股吧帖子</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/rank">人气榜</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mt-4">
+        <h4 class="mb-3">技术指标分析</h4>
+
+        <!-- 查询表单 -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form action="/technical" method="get" class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">股票代码</label>
+                        <input type="text" class="form-control" name="code"
+                               placeholder="如 600519 或 sh600519" th:value="${code}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">数据天数（用于计算）</label>
+                        <select class="form-select" name="days">
+                            <option value="60" th:selected="${days == 60}">60 天</option>
+                            <option value="120" th:selected="${days == 120}">120 天</option>
+                            <option value="250" th:selected="${days == 250}">250 天</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-info text-white w-100">计算指标</button>
+                    </div>
+                    <div class="col-12">
+                        <small class="text-muted">基于 ta4j 库计算，包含 MA / MACD / RSI / KDJ / 布林带等指标</small>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 错误提示 -->
+        <div th:if="${error}" class="alert alert-danger" th:text="${error}"></div>
+
+        <!-- 指标结果 -->
+        <div th:if="${indicators != null}">
+            <!-- 综合信号 -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>技术分析结果</strong>
+                        <code class="ms-2 text-white" th:text="${code}"></code>
+                        <span class="ms-2 badge bg-light text-dark" th:text="${days + '天数据'}"></span>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <a th:href="@{/quote(code=${code})}" class="btn btn-sm btn-light">实时行情</a>
+                        <a th:href="@{/kline(code=${code})}" class="btn btn-sm btn-light">K线数据</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="card text-center p-3">
+                                <div class="text-muted small mb-1">趋势判断</div>
+                                <div class="fs-4 fw-bold"
+                                     th:classappend="${indicators.trend == '上涨' or indicators.trend == 'BULLISH' ? 'signal-bullish' : (indicators.trend == '下跌' or indicators.trend == 'BEARISH' ? 'signal-bearish' : 'signal-neutral')}"
+                                     th:text="${indicators.trend != null ? indicators.trend : '-'}">-</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card text-center p-3">
+                                <div class="text-muted small mb-1">MACD 信号</div>
+                                <div class="fs-5 fw-bold"
+                                     th:classappend="${indicators.macdSignal == '金叉' or indicators.macdSignal == 'BUY' ? 'signal-bullish' : (indicators.macdSignal == '死叉' or indicators.macdSignal == 'SELL' ? 'signal-bearish' : 'signal-neutral')}"
+                                     th:text="${indicators.macdSignal != null ? indicators.macdSignal : '-'}">-</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card text-center p-3">
+                                <div class="text-muted small mb-1">RSI 信号</div>
+                                <div class="fs-5 fw-bold"
+                                     th:classappend="${indicators.rsiSignal == '超买' or indicators.rsiSignal == 'OVERBOUGHT' ? 'signal-bearish' : (indicators.rsiSignal == '超卖' or indicators.rsiSignal == 'OVERSOLD' ? 'signal-bullish' : 'signal-neutral')}"
+                                     th:text="${indicators.rsiSignal != null ? indicators.rsiSignal : '-'}">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 各指标详情 -->
+            <div class="row">
+                <!-- 均线系统 -->
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-header">均线系统（MA）</div>
+                        <div class="card-body">
+                            <div class="indicator-group ma">
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tr>
+                                        <td class="text-muted" style="width:40%">MA5</td>
+                                        <td th:text="${indicators.ma5 != null ? #numbers.formatDecimal(indicators.ma5, 1, 2) : '-'}">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">MA10</td>
+                                        <td th:text="${indicators.ma10 != null ? #numbers.formatDecimal(indicators.ma10, 1, 2) : '-'}">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">MA20</td>
+                                        <td th:text="${indicators.ma20 != null ? #numbers.formatDecimal(indicators.ma20, 1, 2) : '-'}">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">MA60</td>
+                                        <td th:text="${indicators.ma60 != null ? #numbers.formatDecimal(indicators.ma60, 1, 2) : '-'}">-</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MACD -->
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-header">MACD 指标</div>
+                        <div class="card-body">
+                            <div class="indicator-group macd">
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tr>
+                                        <td class="text-muted" style="width:40%">DIF（快线）</td>
+                                        <td th:text="${indicators.macdDif != null ? #numbers.formatDecimal(indicators.macdDif, 1, 4) : '-'}">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">DEA（慢线）</td>
+                                        <td th:text="${indicators.macdDea != null ? #numbers.formatDecimal(indicators.macdDea, 1, 4) : '-'}">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">柱状线（MACD）</td>
+                                        <td>
+                                            <span th:if="${indicators.macdHistogram != null}"
+                                                  th:classappend="${indicators.macdHistogram.compareTo(T(java.math.BigDecimal).ZERO) >= 0 ? 'signal-bullish' : 'signal-bearish'}"
+                                                  th:text="${#numbers.formatDecimal(indicators.macdHistogram, 1, 4)}">-</span>
+                                            <span th:if="${indicators.macdHistogram == null}" class="text-muted">-</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">信号</td>
+                                        <td>
+                                            <span th:if="${indicators.macdSignal != null}"
+                                                  th:classappend="${indicators.macdSignal == '金叉' or indicators.macdSignal == 'BUY' ? 'signal-bullish' : (indicators.macdSignal == '死叉' or indicators.macdSignal == 'SELL' ? 'signal-bearish' : 'signal-neutral')}"
+                                                  th:text="${indicators.macdSignal}">-</span>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RSI -->
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-header">RSI 相对强弱指标</div>
+                        <div class="card-body">
+                            <div class="indicator-group rsi">
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tr>
+                                        <td class="text-muted" style="width:40%">RSI(6)</td>
+                                        <td>
+                                            <span th:if="${indicators.rsi6 != null}"
+                                                  th:classappend="${indicators.rsi6.doubleValue() >= 70.0 ? 'signal-bearish' : (indicators.rsi6.doubleValue() <= 30.0 ? 'signal-bullish' : '')}"
+                                                  th:text="${#numbers.formatDecimal(indicators.rsi6, 1, 2)}">-</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">RSI(12)</td>
+                                        <td th:text="${indicators.rsi12 != null ? #numbers.formatDecimal(indicators.rsi12, 1, 2) : '-'}">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">RSI(24)</td>
+                                        <td th:text="${indicators.rsi24 != null ? #numbers.formatDecimal(indicators.rsi24, 1, 2) : '-'}">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">信号</td>
+                                        <td>
+                                            <span th:if="${indicators.rsiSignal != null}"
+                                                  th:classappend="${indicators.rsiSignal == '超卖' or indicators.rsiSignal == 'OVERSOLD' ? 'signal-bullish' : (indicators.rsiSignal == '超买' or indicators.rsiSignal == 'OVERBOUGHT' ? 'signal-bearish' : 'signal-neutral')}"
+                                                  th:text="${indicators.rsiSignal}">-</span>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <small class="text-muted">超买 &gt; 70，超卖 &lt; 30</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KDJ -->
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-header">KDJ 随机指标</div>
+                        <div class="card-body">
+                            <div class="indicator-group kdj">
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tr>
+                                        <td class="text-muted" style="width:40%">K 值</td>
+                                        <td th:text="${indicators.kdjK != null ? #numbers.formatDecimal(indicators.kdjK, 1, 2) : '-'}">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">D 值</td>
+                                        <td th:text="${indicators.kdjD != null ? #numbers.formatDecimal(indicators.kdjD, 1, 2) : '-'}">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">J 值</td>
+                                        <td>
+                                            <span th:if="${indicators.kdjJ != null}"
+                                                  th:classappend="${indicators.kdjJ.doubleValue() >= 80.0 ? 'signal-bearish' : (indicators.kdjJ.doubleValue() <= 20.0 ? 'signal-bullish' : '')}"
+                                                  th:text="${#numbers.formatDecimal(indicators.kdjJ, 1, 2)}">-</span>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <small class="text-muted">超买 J &gt; 80，超卖 J &lt; 20</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 布林带 -->
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-header">布林带（Bollinger Bands）</div>
+                        <div class="card-body">
+                            <div class="indicator-group boll">
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tr>
+                                        <td class="text-muted" style="width:40%">上轨（UPPER）</td>
+                                        <td class="signal-bearish" th:text="${indicators.bollUpper != null ? #numbers.formatDecimal(indicators.bollUpper, 1, 2) : '-'}">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">中轨（MID）</td>
+                                        <td th:text="${indicators.bollMiddle != null ? #numbers.formatDecimal(indicators.bollMiddle, 1, 2) : '-'}">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">下轨（LOWER）</td>
+                                        <td class="signal-bullish" th:text="${indicators.bollLower != null ? #numbers.formatDecimal(indicators.bollLower, 1, 2) : '-'}">-</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 成交量均线 -->
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-header">成交量均线</div>
+                        <div class="card-body">
+                            <div class="indicator-group volume">
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tr>
+                                        <td class="text-muted" style="width:40%">成交量 MA5</td>
+                                        <td th:text="${indicators.volumeMa5 != null ? #numbers.formatDecimal(indicators.volumeMa5, 1, 0) : '-'}">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">成交量 MA10</td>
+                                        <td th:text="${indicators.volumeMa10 != null ? #numbers.formatDecimal(indicators.volumeMa10, 1, 0) : '-'}">-</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 未查询提示 -->
+        <div th:if="${indicators == null and error == null and (code == null or code.isBlank())}" class="text-center text-muted py-5">
+            <h5>输入股票代码开始技术分析</h5>
+            <p>将基于 ta4j 计算 MA / MACD / RSI / KDJ / 布林带等技术指标</p>
+        </div>
+
+        <!-- 查询后无数据 -->
+        <div th:if="${indicators == null and error == null and code != null and !code.isBlank()}" class="text-center text-muted py-5">
+            <h5>未能计算技术指标</h5>
+            <p>K线历史数据不足（至少需要 60 条），请增加天数或确认代码正确</p>
+        </div>
+    </main>
+
+    <footer class="text-center mt-5 py-3 bg-light">
+        <div class="container">
+            <p class="text-muted mb-0">股票数据爬虫 - 技术指标基于 ta4j 计算，K线数据优先来自百度股市通、新浪，东方财富限流兜底</p>
+        </div>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

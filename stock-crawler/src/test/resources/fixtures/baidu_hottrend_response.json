@@ -1,0 +1,39 @@
+{
+  "data": {
+    "cards": [
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "word": "人工智能大模型新进展",
+                "url": "https://www.baidu.com/s?wd=%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD%E5%A4%A7%E6%A8%A1%E5%9E%8B%E6%96%B0%E8%BF%9B%E5%B1%95",
+                "hotScore": "8765432"
+              },
+              {
+                "word": "A股三大指数全线上涨",
+                "url": "https://www.baidu.com/s?wd=A%E8%82%A1%E4%B8%89%E5%A4%A7%E6%8C%87%E6%95%B0%E5%85%A8%E7%BA%BF%E4%B8%8A%E6%B6%A8",
+                "hotScore": "6543210"
+              },
+              {
+                "word": "国产芯片取得重大突破",
+                "url": "https://www.baidu.com/s?wd=%E5%9B%BD%E4%BA%A7%E8%8A%AF%E7%89%87%E5%8F%96%E5%BE%97%E9%87%8D%E5%A4%A7%E7%AA%81%E7%A0%B4",
+                "hotScore": "5432109"
+              },
+              {
+                "word": "新能源车出口量再创新高",
+                "url": "https://www.baidu.com/s?wd=%E6%96%B0%E8%83%BD%E6%BA%90%E8%BD%A6%E5%87%BA%E5%8F%A3%E9%87%8F",
+                "hotScore": "4321098"
+              },
+              {
+                "word": "房地产市场回暖迹象",
+                "url": "https://www.baidu.com/s?wd=%E6%88%BF%E5%9C%B0%E4%BA%A7%E5%B8%82%E5%9C%BA%E5%9B%9E%E6%9A%96",
+                "hotScore": "3210987"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "TotalCount": 85,
+  "TotalPage": 9,
+  "data": [
+    {
+      "title": "平安银行2026年年报业绩点评：归母净利润增长8.9%，不良率下降",
+      "stockName": "平安银行",
+      "stockCode": "000001",
+      "orgSName": "中信证券",
+      "researcher": "肖斐斐",
+      "emRatingName": "买入",
+      "publishDate": "2026-03-20",
+      "infoCode": "AP202603200001234567",
+      "indvInduName": "银行",
+      "predictThisYearEps": "1.58",
+      "predictThisYearPe": "7.3",
+      "encodeUrl": "https://pdf.dfcfw.com/pdf/H3_AP202603200001234567_1.pdf"
+    },
+    {
+      "title": "平安银行深度：零售转型成效显著，估值修复可期",
+      "stockName": "平安银行",
+      "stockCode": "000001",
+      "orgSName": "海通证券",
+      "researcher": "孙婷",
+      "emRatingName": "增持",
+      "publishDate": "2026-03-15",
+      "infoCode": "AP202603150007654321",
+      "indvInduName": "银行",
+      "predictThisYearEps": "1.55",
+      "predictThisYearPe": "7.1",
+      "encodeUrl": "https://pdf.dfcfw.com/pdf/H3_AP202603150007654321_1.pdf"
+    }
+  ]
+}

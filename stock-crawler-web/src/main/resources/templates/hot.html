@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html xmlns:th="https://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>舆情热点 - 股票数据爬虫</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>.navbar-brand { font-weight: bold; }</style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">股票数据爬虫</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item"><a class="nav-link" href="/">首页</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">行情数据</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/quote">实时行情</a></li>
+                            <li><a class="dropdown-item" href="/kline">K线数据</a></li>
+                            <li><a class="dropdown-item" href="/technical">技术分析</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle active" href="#" data-bs-toggle="dropdown">资讯热点</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/market-news">市场快讯</a></li>
+                            <li><a class="dropdown-item" href="/news">财经快讯</a></li>
+                            <li><a class="dropdown-item active" href="/hot">舆情热点</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="/reports">研报查询</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/longhubang">龙虎榜</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/guba">股吧帖子</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/rank">人气榜</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mt-4">
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">微博热搜</h5>
+                                <span class="badge bg-light text-danger" th:text="${#lists.size(weibo)} + ' 条'">0 条</span>
+                            </div>
+                            <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                                <div th:if="${weibo != null and !weibo.isEmpty()}" class="list-group list-group-flush">
+                                    <a th:each="item : ${weibo}" th:href="${item.url}" target="_blank" class="list-group-item list-group-item-action">
+                                        <div class="d-flex justify-content-between">
+                                            <span><span class="badge bg-secondary me-2" th:text="${item.rank}">1</span> <span th:text="${item.title}">标题</span></span>
+                                            <small class="text-muted" th:text="${item.hotScore}">热度</small>
+                                        </div>
+                                    </a>
+                                </div>
+                                <div th:if="${weibo == null or weibo.isEmpty()}" class="text-center text-muted py-4">暂无数据</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">百度热搜</h5>
+                                <span class="badge bg-light text-primary" th:text="${#lists.size(baidu)} + ' 条'">0 条</span>
+                            </div>
+                            <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                                <div th:if="${baidu != null and !baidu.isEmpty()}" class="list-group list-group-flush">
+                                    <a th:each="item : ${baidu}" th:href="${item.url}" target="_blank" class="list-group-item list-group-item-action">
+                                        <div class="d-flex justify-content-between">
+                                            <span><span class="badge bg-secondary me-2" th:text="${item.rank}">1</span> <span th:text="${item.title}">标题</span></span>
+                                            <small class="text-muted" th:text="${item.hotScore}">热度</small>
+                                        </div>
+                                    </a>
+                                </div>
+                                <div th:if="${baidu == null or baidu.isEmpty()}" class="text-center text-muted py-4">暂无数据</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+    <footer class="text-center mt-5 py-3 bg-light">
+        <div class="container">
+            <p class="text-muted mb-0">股票数据爬虫 - 数据来源于微博、百度</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

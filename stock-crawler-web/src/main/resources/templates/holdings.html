@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns:th="https://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股东集中度 - 股票数据爬虫</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .navbar-brand { font-weight: bold; }
+        .table th { white-space: nowrap; font-size: 0.85rem; }
+        .table td { font-size: 0.85rem; }
+        .positive { color: #dc3545; }
+        .negative { color: #198754; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">股票数据爬虫</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item"><a class="nav-link" href="/">首页</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">行情数据</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/quote">实时行情</a></li>
+                            <li><a class="dropdown-item" href="/kline">K线数据</a></li>
+                            <li><a class="dropdown-item" href="/technical">技术分析</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle active" href="#" data-bs-toggle="dropdown">财务数据</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/financial">财务指标</a></li>
+                            <li><a class="dropdown-item" href="/holdings">股东集中度</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="/reports">研报查询</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/longhubang">龙虎榜</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/guba">股吧帖子</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/rank">人气榜</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mt-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">股东集中度</h5>
+            </div>
+            <div class="card-body">
+                <form action="/holdings" method="get" class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" name="code" placeholder="输入股票代码 (如 600519)" th:value="${code}">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="number" class="form-control" name="count" min="1" max="8" value="4" th:value="${count}">
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">查询</button>
+                    </div>
+                </form>
+
+                <div th:if="${error != null}" class="alert alert-danger" th:text="${error}">错误</div>
+
+                <div th:if="${data != null and !data.isEmpty()}" class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>报告期</th>
+                                <th>股东户数</th>
+                                <th>较上期变化%</th>
+                                <th>户均持股(股)</th>
+                                <th>户均持股市值(万)</th>
+                                <th>筹码集中度</th>
+                                <th>流通股占比%</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="item : ${data}">
+                                <td th:text="${item.endDate != null ? #strings.substring(item.endDate, 0, 10) : '-'}">-</td>
+                                <td th:text="${item.holderTotalNum != null ? #numbers.formatInteger(item.holderTotalNum, 1, 'COMMA') : '-'}">-</td>
+                                <td>
+                                    <span th:if="${item.totalNumRatio != null}" th:classappend="${item.totalNumRatio >= 0} ? 'positive' : 'negative'" th:text="${#numbers.formatDecimal(item.totalNumRatio, 1, 2)} + '%'">-</span>
+                                    <span th:if="${item.totalNumRatio == null}">-</span>
+                                </td>
+                                <td th:text="${item.avgFreeShares != null ? #numbers.formatDecimal(item.avgFreeShares, 1, 0) : '-'}">-</td>
+                                <td th:text="${item.avgHoldAmt != null ? #numbers.formatDecimal(item.avgHoldAmt / 10000.0, 1, 2) : '-'}">-</td>
+                                <td th:text="${item.holdFocus != null ? item.holdFocus : '-'}">-</td>
+                                <td th:text="${item.holdRatioTotal != null ? #numbers.formatDecimal(item.holdRatioTotal, 1, 2) : '-'}">-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div th:if="${data == null or #lists.isEmpty(data)}" class="text-center text-muted py-5">
+                    <h4 th:if="${code != null and !code.isEmpty()}">未找到股东集中度数据</h4>
+                    <h4 th:if="${code == null or code.isEmpty()}">请输入股票代码查询</h4>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="text-center mt-5 py-3 bg-light">
+        <div class="container">
+            <p class="text-muted mb-0">股票数据爬虫 - 数据来源于东方财富数据中心</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

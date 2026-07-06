@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html xmlns:th="https://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时行情 - 股票数据爬虫</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .navbar-brand { font-weight: bold; }
+        .price-up { color: #dc3545; font-weight: bold; }
+        .price-down { color: #198754; font-weight: bold; }
+        .price-flat { color: #6c757d; }
+        .stat-card { border-left: 4px solid; }
+        .stat-card.primary { border-left-color: #0d6efd; }
+        .stat-card.success { border-left-color: #198754; }
+        .stat-card.warning { border-left-color: #ffc107; }
+        .stat-card.info { border-left-color: #0dcaf0; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">股票数据爬虫</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item"><a class="nav-link" href="/">首页</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle active" href="#" data-bs-toggle="dropdown">行情数据</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item active" href="/quote">实时行情</a></li>
+                            <li><a class="dropdown-item" href="/kline">K线数据</a></li>
+                            <li><a class="dropdown-item" href="/technical">技术分析</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">资讯热点</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/market-news">市场快讯</a></li>
+                            <li><a class="dropdown-item" href="/news">财经快讯</a></li>
+                            <li><a class="dropdown-item" href="/hot">舆情热点</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="/reports">研报查询</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/longhubang">龙虎榜</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/guba">股吧帖子</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/rank">人气榜</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mt-4">
+        <h4 class="mb-3">实时行情查询</h4>
+
+        <!-- 搜索表单 -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-5">
+                        <form action="/quote" method="get" class="d-flex gap-2">
+                            <input type="text" class="form-control" name="code" placeholder="输入股票代码，如 600519 或 sh600519"
+                                   th:value="${code}">
+                            <button type="submit" class="btn btn-primary">查行情</button>
+                        </form>
+                    </div>
+                    <div class="col-md-7">
+                        <form action="/search" method="get" class="d-flex gap-2">
+                            <input type="text" class="form-control" name="keyword" placeholder="搜索股票名称或代码，如 贵州茅台"
+                                   th:value="${keyword}">
+                            <button type="submit" class="btn btn-outline-primary">搜索</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">数据来源：腾讯财经优先，新浪 / 东方财富兜底 | 支持格式：600519 / sh600519 / 000001 / sz000001</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- 错误提示 -->
+        <div th:if="${error}" class="alert alert-danger" th:text="${error}"></div>
+
+        <!-- 搜索结果列表 -->
+        <div th:if="${results != null}" class="card mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h6 class="mb-0">搜索结果：<span th:text="${keyword}"></span></h6>
+            </div>
+            <div class="card-body">
+                <div th:if="${results != null and !results.isEmpty()}">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>代码</th>
+                                    <th>名称</th>
+                                    <th>最新价</th>
+                                    <th>涨跌幅</th>
+                                    <th>数据源</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="item : ${results}">
+                                    <td><code th:text="${item.code}"></code></td>
+                                    <td th:text="${item.name}"></td>
+                                    <td>
+                                        <span th:if="${item.price != null}" th:text="${item.price}"></span>
+                                        <span th:if="${item.price == null}" class="text-muted">-</span>
+                                    </td>
+                                    <td>
+                                        <span th:if="${item.changePercent != null and item.changePercent >= 0}" class="price-up"
+                                              th:text="${#numbers.formatDecimal(item.changePercent, 1, 2) + '%'}"></span>
+                                        <span th:if="${item.changePercent != null and item.changePercent < 0}" class="price-down"
+                                              th:text="${#numbers.formatDecimal(item.changePercent, 1, 2) + '%'}"></span>
+                                    </td>
+                                    <td><span class="badge bg-secondary" th:text="${item.source}"></span></td>
+                                    <td>
+                                        <a th:href="@{/quote(code=${item.code})}" class="btn btn-sm btn-outline-primary">详情</a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div th:if="${results == null or results.isEmpty()}" class="text-center text-muted py-3">
+                    <p>未找到相关股票</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 实时行情详情 -->
+        <div th:if="${quote != null}" class="mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong th:text="${quote.name}">股票名称</strong>
+                        <code class="ms-2 text-white" th:text="${quote.code}">代码</code>
+                    </div>
+                    <div>
+                        <span class="badge bg-light text-dark" th:text="${quote.source}">来源</span>
+                        <small class="ms-2" th:text="${quote.time}">更新时间</small>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- 核心价格 -->
+                    <div class="row mb-3 align-items-center">
+                        <div class="col-auto">
+                            <span class="display-5 fw-bold"
+                                  th:classappend="${quote.changePercent != null and quote.changePercent.compareTo(T(java.math.BigDecimal).ZERO) >= 0 ? 'price-up' : 'price-down'}"
+                                  th:text="${quote.price}">0.00</span>
+                        </div>
+                        <div class="col-auto">
+                            <div th:if="${quote.change != null}">
+                                <span th:if="${quote.change.compareTo(T(java.math.BigDecimal).ZERO) >= 0}"
+                                      class="price-up" th:text="|+${quote.change}|"></span>
+                                <span th:if="${quote.change.compareTo(T(java.math.BigDecimal).ZERO) < 0}"
+                                      class="price-down" th:text="${quote.change}"></span>
+                                <span th:if="${quote.changePercent != null and quote.changePercent.compareTo(T(java.math.BigDecimal).ZERO) >= 0}"
+                                      class="ms-1 price-up"
+                                      th:text="|(+${#numbers.formatDecimal(quote.changePercent, 1, 2)}%)|"></span>
+                                <span th:if="${quote.changePercent != null and quote.changePercent.compareTo(T(java.math.BigDecimal).ZERO) < 0}"
+                                      class="ms-1 price-down"
+                                      th:text="|(${#numbers.formatDecimal(quote.changePercent, 1, 2)}%)|"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 统计数据 -->
+                    <div class="row g-3">
+                        <div class="col-6 col-md-3">
+                            <div class="card stat-card primary p-2">
+                                <div class="text-muted small">今开</div>
+                                <div class="fw-bold" th:text="${quote.open != null ? quote.open : '-'}">-</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card stat-card success p-2">
+                                <div class="text-muted small">昨收</div>
+                                <div class="fw-bold" th:text="${quote.preClose != null ? quote.preClose : '-'}">-</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card stat-card warning p-2">
+                                <div class="text-muted small">最高</div>
+                                <div class="fw-bold price-up" th:text="${quote.high != null ? quote.high : '-'}">-</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card stat-card info p-2">
+                                <div class="text-muted small">最低</div>
+                                <div class="fw-bold price-down" th:text="${quote.low != null ? quote.low : '-'}">-</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card stat-card primary p-2">
+                                <div class="text-muted small">成交量（手）</div>
+                                <div class="fw-bold" th:text="${quote.volume != null ? quote.volume : '-'}">-</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card stat-card success p-2">
+                                <div class="text-muted small">成交额（元）</div>
+                                <div class="fw-bold" th:text="${quote.amount != null ? quote.amount : '-'}">-</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card stat-card warning p-2">
+                                <div class="text-muted small">换手率</div>
+                                <div class="fw-bold" th:text="${quote.turnoverRate != null ? #numbers.formatDecimal(quote.turnoverRate, 1, 2) + '%' : '-'}">-</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card stat-card info p-2">
+                                <div class="text-muted small">总市值（元）</div>
+                                <div class="fw-bold" th:text="${quote.marketCap != null ? quote.marketCap : '-'}">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 基本面 + 买卖盘 -->
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <h6 class="text-muted border-bottom pb-1">基本面</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td class="text-muted" style="width:40%">市盈率(PE)</td>
+                                    <td th:text="${quote.pe != null ? #numbers.formatDecimal(quote.pe, 1, 2) : '-'}">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">市净率(PB)</td>
+                                    <td th:text="${quote.pb != null ? #numbers.formatDecimal(quote.pb, 1, 2) : '-'}">-</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted border-bottom pb-1">买卖盘（一档）</h6>
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td class="text-muted" style="width:40%">买一价</td>
+                                    <td th:text="${quote.bid1Price != null ? quote.bid1Price : '-'}">-</td>
+                                    <td class="text-muted">买一量</td>
+                                    <td th:text="${quote.bid1Volume != null ? quote.bid1Volume : '-'}">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">卖一价</td>
+                                    <td th:text="${quote.ask1Price != null ? quote.ask1Price : '-'}">-</td>
+                                    <td class="text-muted">卖一量</td>
+                                    <td th:text="${quote.ask1Volume != null ? quote.ask1Volume : '-'}">-</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 跳转按钮 -->
+                    <div class="mt-3 d-flex gap-2">
+                        <a th:href="@{/kline(code=${quote.code})}" class="btn btn-outline-primary btn-sm">查看K线</a>
+                        <a th:href="@{/technical(code=${quote.code})}" class="btn btn-outline-info btn-sm">技术分析</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 无结果提示 -->
+        <div th:if="${code != null and !code.isBlank() and quote == null and error == null}" class="text-center text-muted py-5">
+            <h5>未获取到行情数据</h5>
+            <p>请确认股票代码正确，或稍后重试</p>
+        </div>
+    </main>
+
+    <footer class="text-center mt-5 py-3 bg-light">
+        <div class="container">
+            <p class="text-muted mb-0">股票数据爬虫 - 数据来源于腾讯财经、新浪、东方财富等公开平台</p>
+        </div>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

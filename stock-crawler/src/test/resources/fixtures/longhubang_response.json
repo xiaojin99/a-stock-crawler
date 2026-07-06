@@ -1,0 +1,57 @@
+{
+  "success": true,
+  "message": "OK",
+  "result": {
+    "count": 150,
+    "data": [
+      {
+        "SECURITY_CODE": "000001",
+        "SECUCODE": "000001.SZ",
+        "SECURITY_NAME_ABBR": "平安银行",
+        "TRADE_DATE": "2026-03-25 00:00:00",
+        "EXPLAIN": "连续三日涨幅偏离值偏高",
+        "EXPLANATION": "连续三个交易日内，涨幅偏离值累计达到12%的证券",
+        "CLOSE_PRICE": 11.5,
+        "CHANGE_RATE": 9.98,
+        "BILLBOARD_NET_AMT": 12345678.0,
+        "BILLBOARD_BUY_AMT": 56789012.0,
+        "BILLBOARD_SELL_AMT": 44443334.0,
+        "BILLBOARD_DEAL_AMT": 101232346.0,
+        "ACCUM_AMOUNT": 987654321.0,
+        "DEAL_NET_RATIO": 12.34,
+        "DEAL_AMOUNT_RATIO": 10.25,
+        "TURNOVERRATE": 3.56,
+        "FREE_MARKET_CAP": 500000000000.0,
+        "D1_CLOSE_ADJCHRATE": 9.98,
+        "D2_CLOSE_ADJCHRATE": 5.12,
+        "D5_CLOSE_ADJCHRATE": 15.67,
+        "D10_CLOSE_ADJCHRATE": 20.34,
+        "SECURITY_TYPE_CODE": "058001001"
+      },
+      {
+        "SECURITY_CODE": "600519",
+        "SECUCODE": "600519.SH",
+        "SECURITY_NAME_ABBR": "贵州茅台",
+        "TRADE_DATE": "2026-03-25 00:00:00",
+        "EXPLAIN": "日涨幅偏离值偏高",
+        "EXPLANATION": "当日涨幅偏离值达到7%的证券",
+        "CLOSE_PRICE": 1680.0,
+        "CHANGE_RATE": 7.02,
+        "BILLBOARD_NET_AMT": 98765432.0,
+        "BILLBOARD_BUY_AMT": 200000000.0,
+        "BILLBOARD_SELL_AMT": 101234568.0,
+        "BILLBOARD_DEAL_AMT": 301234568.0,
+        "ACCUM_AMOUNT": 1234567890.0,
+        "DEAL_NET_RATIO": 32.78,
+        "DEAL_AMOUNT_RATIO": 24.43,
+        "TURNOVERRATE": 0.98,
+        "FREE_MARKET_CAP": 2100000000000.0,
+        "D1_CLOSE_ADJCHRATE": 7.02,
+        "D2_CLOSE_ADJCHRATE": 2.35,
+        "D5_CLOSE_ADJCHRATE": 8.91,
+        "D10_CLOSE_ADJCHRATE": 12.45,
+        "SECURITY_TYPE_CODE": "058001001"
+      }
+    ]
+  }
+}
