@@ -68,16 +68,17 @@
                                     <span th:if="${item.rank > 3}" class="badge bg-light text-dark" th:text="${item.rank}">4</span>
                                 </td>
                                 <td><code th:text="${item.pureCode}">代码</code></td>
-                                <td th:text="${item.stockName}">名称</td>
-                                <td th:text="${item.closePrice}">价格</td>
+                                <td th:text="${item.stockName != null and !item.stockName.isBlank() ? item.stockName : '-'}">名称</td>
+                                <td th:text="${item.closePrice != null ? item.closePrice : '-'}">价格</td>
                                 <td>
-                                    <span th:if="${item.changePercent >= 0}" class="text-danger fw-bold" th:text="${#numbers.formatDecimal(item.changePercent, 1, 2)} + '%'">0%</span>
-                                    <span th:if="${item.changePercent < 0}" class="text-success fw-bold" th:text="${#numbers.formatDecimal(item.changePercent, 1, 2)} + '%'">0%</span>
+                                    <span th:if="${item.changePercent == null}" class="text-muted">-</span>
+                                    <span th:if="${item.changePercent != null and item.changePercent >= 0}" class="text-danger fw-bold" th:text="${#numbers.formatDecimal(item.changePercent, 1, 2)} + '%'">0%</span>
+                                    <span th:if="${item.changePercent != null and item.changePercent < 0}" class="text-success fw-bold" th:text="${#numbers.formatDecimal(item.changePercent, 1, 2)} + '%'">0%</span>
                                 </td>
                                 <td>
-                                    <span th:if="${item.rankChange > 0}" class="badge bg-success" th:text="'↑' + ${item.rankChange}">上升</span>
-                                    <span th:if="${item.rankChange < 0}" class="badge bg-danger" th:text="'↓' + ${item.rankChange * -1}">下降</span>
-                                    <span th:if="${item.rankChange == 0}" class="badge bg-secondary">-</span>
+                                    <span th:if="${item.rankChange != null and item.rankChange > 0}" class="badge bg-success" th:text="'↑' + ${item.rankChange}">上升</span>
+                                    <span th:if="${item.rankChange != null and item.rankChange < 0}" class="badge bg-danger" th:text="'↓' + ${item.rankChange * -1}">下降</span>
+                                    <span th:if="${item.rankChange == null or item.rankChange == 0}" class="badge bg-secondary">-</span>
                                 </td>
                             </tr>
                         </tbody>

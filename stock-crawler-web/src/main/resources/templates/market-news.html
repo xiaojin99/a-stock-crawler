@@ -94,10 +94,11 @@
                                           th:text="${item.source}">来源</span>
                                     <div class="flex-grow-1">
                                         <div class="news-title" th:if="${item.title != null and !item.title.isBlank()}">
-                                            <a th:if="${item.url != null and !item.url.isBlank()}"
-                                               th:href="${item.url}" target="_blank" class="text-decoration-none text-dark"
+                                            <a th:if="${T(com.stock.web.util.SafeUrlUtils).isSafeHttpUrl(item.url)}"
+                                               th:href="${item.url}" target="_blank" rel="noopener noreferrer"
+                                               class="text-decoration-none text-dark"
                                                th:text="${item.title}">标题</a>
-                                            <span th:if="${item.url == null or item.url.isBlank()}"
+                                            <span th:unless="${T(com.stock.web.util.SafeUrlUtils).isSafeHttpUrl(item.url)}"
                                                   th:text="${item.title}">标题</span>
                                         </div>
                                         <div class="news-meta mt-1"
@@ -136,10 +137,10 @@
                                     </span>
                                     <div class="flex-grow-1 overflow-hidden">
                                         <div class="text-truncate small fw-500">
-                                            <a th:if="${item.url != null and !item.url.isBlank()}"
-                                               th:href="${item.url}" target="_blank"
+                                            <a th:if="${T(com.stock.web.util.SafeUrlUtils).isSafeHttpUrl(item.url)}"
+                                               th:href="${item.url}" target="_blank" rel="noopener noreferrer"
                                                class="text-decoration-none text-dark" th:text="${item.title}">标题</a>
-                                            <span th:if="${item.url == null or item.url.isBlank()}"
+                                            <span th:unless="${T(com.stock.web.util.SafeUrlUtils).isSafeHttpUrl(item.url)}"
                                                   th:text="${item.title}">标题</span>
                                         </div>
                                         <div class="text-muted" style="font-size: 0.75rem;"

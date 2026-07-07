@@ -52,12 +52,23 @@
                             </div>
                             <div class="card-body" style="max-height: 600px; overflow-y: auto;">
                                 <div th:if="${weibo != null and !weibo.isEmpty()}" class="list-group list-group-flush">
-                                    <a th:each="item : ${weibo}" th:href="${item.url}" target="_blank" class="list-group-item list-group-item-action">
-                                        <div class="d-flex justify-content-between">
-                                            <span><span class="badge bg-secondary me-2" th:text="${item.rank}">1</span> <span th:text="${item.title}">标题</span></span>
-                                            <small class="text-muted" th:text="${item.hotScore}">热度</small>
+                                    <div th:each="item : ${weibo}">
+                                        <a th:if="${T(com.stock.web.util.SafeUrlUtils).isSafeHttpUrl(item.url)}"
+                                           th:href="${item.url}" target="_blank" rel="noopener noreferrer"
+                                           class="list-group-item list-group-item-action">
+                                            <div class="d-flex justify-content-between">
+                                                <span><span class="badge bg-secondary me-2" th:text="${item.rank}">1</span> <span th:text="${item.title}">标题</span></span>
+                                                <small class="text-muted" th:text="${item.hotScore}">热度</small>
+                                            </div>
+                                        </a>
+                                        <div th:unless="${T(com.stock.web.util.SafeUrlUtils).isSafeHttpUrl(item.url)}"
+                                             class="list-group-item">
+                                            <div class="d-flex justify-content-between">
+                                                <span><span class="badge bg-secondary me-2" th:text="${item.rank}">1</span> <span th:text="${item.title}">标题</span></span>
+                                                <small class="text-muted" th:text="${item.hotScore}">热度</small>
+                                            </div>
                                         </div>
-                                    </a>
+                                    </div>
                                 </div>
                                 <div th:if="${weibo == null or weibo.isEmpty()}" class="text-center text-muted py-4">暂无数据</div>
                             </div>
@@ -71,12 +82,23 @@
                             </div>
                             <div class="card-body" style="max-height: 600px; overflow-y: auto;">
                                 <div th:if="${baidu != null and !baidu.isEmpty()}" class="list-group list-group-flush">
-                                    <a th:each="item : ${baidu}" th:href="${item.url}" target="_blank" class="list-group-item list-group-item-action">
-                                        <div class="d-flex justify-content-between">
-                                            <span><span class="badge bg-secondary me-2" th:text="${item.rank}">1</span> <span th:text="${item.title}">标题</span></span>
-                                            <small class="text-muted" th:text="${item.hotScore}">热度</small>
+                                    <div th:each="item : ${baidu}">
+                                        <a th:if="${T(com.stock.web.util.SafeUrlUtils).isSafeHttpUrl(item.url)}"
+                                           th:href="${item.url}" target="_blank" rel="noopener noreferrer"
+                                           class="list-group-item list-group-item-action">
+                                            <div class="d-flex justify-content-between">
+                                                <span><span class="badge bg-secondary me-2" th:text="${item.rank}">1</span> <span th:text="${item.title}">标题</span></span>
+                                                <small class="text-muted" th:text="${item.hotScore}">热度</small>
+                                            </div>
+                                        </a>
+                                        <div th:unless="${T(com.stock.web.util.SafeUrlUtils).isSafeHttpUrl(item.url)}"
+                                             class="list-group-item">
+                                            <div class="d-flex justify-content-between">
+                                                <span><span class="badge bg-secondary me-2" th:text="${item.rank}">1</span> <span th:text="${item.title}">标题</span></span>
+                                                <small class="text-muted" th:text="${item.hotScore}">热度</small>
+                                            </div>
                                         </div>
-                                    </a>
+                                    </div>
                                 </div>
                                 <div th:if="${baidu == null or baidu.isEmpty()}" class="text-center text-muted py-4">暂无数据</div>
                             </div>

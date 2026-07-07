@@ -10,6 +10,7 @@ import com.stock.crawler.model.MarketNewsItem;
 import com.stock.crawler.model.StockBasicInfo;
 import com.stock.crawler.util.HttpUtils;
 import com.stock.crawler.util.ParseUtils;
+import com.stock.crawler.util.StockCodeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -369,17 +370,7 @@ public class StockIntelligenceService {
     }
 
     private String normalizeCode(String stockCode) {
-        if (stockCode == null) {
-            return "";
-        }
-        String code = stockCode.trim().toLowerCase();
-        if (code.startsWith("sh") || code.startsWith("sz") || code.startsWith("bj")) {
-            return code.substring(2);
-        }
-        if (code.matches("^\\d{6}\\.(sh|sz|bj)$")) {
-            return code.substring(0, 6);
-        }
-        return code;
+        return StockCodeUtils.stripMarket(stockCode);
     }
 
     private int marketCode(String code) {

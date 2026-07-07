@@ -65,12 +65,13 @@
                             <tr th:each="item : ${items}">
                                 <td><code th:text="${item.code}">代码</code></td>
                                 <td th:text="${item.name}">名称</td>
-                                <td th:text="${item.closePrice}">价格</td>
+                                <td th:text="${item.closePrice != null ? item.closePrice : '-'}">价格</td>
                                 <td>
-                                    <span th:if="${item.changePercent >= 0}" class="text-danger fw-bold" th:text="${#numbers.formatDecimal(item.changePercent, 1, 2)} + '%'">0%</span>
-                                    <span th:if="${item.changePercent < 0}" class="text-success fw-bold" th:text="${#numbers.formatDecimal(item.changePercent, 1, 2)} + '%'">0%</span>
+                                    <span th:if="${item.changePercent == null}" class="text-muted">-</span>
+                                    <span th:if="${item.changePercent != null and item.changePercent >= 0}" class="text-danger fw-bold" th:text="${#numbers.formatDecimal(item.changePercent, 1, 2)} + '%'">0%</span>
+                                    <span th:if="${item.changePercent != null and item.changePercent < 0}" class="text-success fw-bold" th:text="${#numbers.formatDecimal(item.changePercent, 1, 2)} + '%'">0%</span>
                                 </td>
-                                <td th:text="${#numbers.formatDecimal(item.netBuyAmt / 10000, 1, 2)}">0</td>
+                                <td th:text="${item.netBuyAmt != null ? #numbers.formatDecimal(item.netBuyAmt / 10000, 1, 2) : '-'}">0</td>
                                 <td><small th:text="${item.reason}">原因</small></td>
                             </tr>
                         </tbody>

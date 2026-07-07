@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.model.StockRankItem;
 import com.stock.crawler.util.HttpUtils;
 import com.stock.crawler.util.ParseUtils;
+import com.stock.crawler.util.StockCodeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,11 +42,12 @@ public class StockRankService {
      * @return 人气榜列表
      */
     public List<StockRankItem> getRankList(int pageSize) throws IOException {
-        log.info("Fetching stock rank list, pageSize: {}", pageSize);
+        int safePageSize = StockCodeUtils.clamp(pageSize, 1, 100);
+        log.info("Fetching stock rank list, pageSize: {}", safePageSize);
 
         String jsonBody = String.format(
                 "{\"appId\":\"appId\",\"globalId\":\"\",\"pageSize\":%d,\"pageNum\":1}",
-                Math.min(pageSize, 100)
+                safePageSize
         );
 
         Map<String, String> headers = Map.of(
@@ -77,10 +79,11 @@ public class StockRankService {
      */
     public List<StockRankItem> getTopN(int n) throws IOException {
         List<StockRankItem> all = getRankList(100);
-        if (all.size() <= n) {
+        int safeN = StockCodeUtils.clamp(n, 1, 100);
+        if (all.size() <= safeN) {
             return all;
         }
-        return all.subList(0, n);
+        return all.subList(0, safeN);
     }
 
     /**

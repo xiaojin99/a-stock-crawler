@@ -8,6 +8,7 @@ import com.stock.crawler.model.FundFlowPoint;
 import com.stock.crawler.model.MarketNewsItem;
 import com.stock.crawler.model.StockBasicInfo;
 import com.stock.crawler.model.StockQuote;
+import com.stock.web.handler.ApiExceptionHandler;
 import com.stock.web.service.CapabilityWebService;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -167,10 +168,15 @@ class CapabilityApiControllerTest {
     @Test
     void invalidStockCodeIsRejectedBeforeCompositeFanOut() throws Exception {
         CapabilityWebService service = mock(CapabilityWebService.class);
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new CapabilityApiController(service)).build();
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new CapabilityApiController(service))
+                .setControllerAdvice(new ApiExceptionHandler())
+                .build();
 
         mockMvc.perform(get("/api/data/snapshot/not-a-stock-code"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.source").value("validation:stock-code"))
+                .andExpect(jsonPath("$.message").value("Invalid stock code"));
 
         verifyNoInteractions(service);
     }

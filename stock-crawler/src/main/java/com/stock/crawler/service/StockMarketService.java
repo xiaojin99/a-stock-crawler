@@ -8,6 +8,7 @@ import com.stock.crawler.datasource.TencentDataSource;
 import com.stock.crawler.model.KLineData;
 import com.stock.crawler.model.StockQuote;
 import com.stock.crawler.model.TechnicalIndicators;
+import com.stock.crawler.util.StockCodeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -224,26 +225,7 @@ public class StockMarketService {
     }
 
     private String normalizeStockCode(String stockCode) {
-        if (stockCode == null) {
-            return "";
-        }
-        String code = stockCode.trim().toLowerCase();
-        if (code.endsWith(".sh")) {
-            return "sh" + code.substring(0, code.length() - 3);
-        }
-        if (code.endsWith(".sz")) {
-            return "sz" + code.substring(0, code.length() - 3);
-        }
-        if (code.matches("^sh\\d{6}$") || code.matches("^sz\\d{6}$") || code.matches("^hk\\d+$")) {
-            return code;
-        }
-        if (code.matches("^6\\d{5}$")) {
-            return "sh" + code;
-        }
-        if (code.matches("^[03]\\d{5}$")) {
-            return "sz" + code;
-        }
-        return code;
+        return StockCodeUtils.normalizeWithMarket(stockCode);
     }
 
     private String normalizePeriod(String period) {

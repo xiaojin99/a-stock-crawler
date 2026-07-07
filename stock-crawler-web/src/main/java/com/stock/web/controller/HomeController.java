@@ -12,6 +12,7 @@ import com.stock.crawler.model.StockQuote;
 import com.stock.crawler.model.StockRankItem;
 import com.stock.crawler.model.TechnicalIndicators;
 import com.stock.crawler.model.Telegraph;
+import com.stock.crawler.util.StockCodeUtils;
 import com.stock.web.service.FinancialWebService;
 import com.stock.web.service.GubaService;
 import com.stock.web.service.HotTrendService;
@@ -120,7 +121,7 @@ public class HomeController {
         model.addAttribute("code", code);
         if (code != null && !code.isEmpty()) {
             try {
-                List<ResearchReport> reports = reportService.getResearchReports(code, 20, 1);
+                List<ResearchReport> reports = reportService.getResearchReports(requireStockCode(code), 20, 1);
                 model.addAttribute("reports", reports);
             } catch (Exception e) {
                 log.error("Failed to fetch reports", e);
@@ -169,7 +170,7 @@ public class HomeController {
         model.addAttribute("code", code);
         if (code != null && !code.isEmpty()) {
             try {
-                List<GubaPost> posts = gubaService.getPostList(code, 30);
+                List<GubaPost> posts = gubaService.getPostList(requireStockCode(code), 30);
                 model.addAttribute("posts", posts);
             } catch (Exception e) {
                 log.error("Failed to fetch guba posts", e);
@@ -186,12 +187,12 @@ public class HomeController {
         model.addAttribute("code", code);
         if (code != null && !code.isEmpty()) {
             try {
-                List<GubaComment> comments = gubaService.getTop3PostComments(code.trim());
+                List<GubaComment> comments = gubaService.getTop3PostComments(requireStockCode(code));
                 model.addAttribute("comments", comments);
             } catch (Exception e) {
                 log.error("Failed to fetch guba hot comments for {}", code, e);
                 model.addAttribute("comments", Collections.emptyList());
-                model.addAttribute("error", "获取热帖评论失败: " + e.getMessage());
+                model.addAttribute("error", "获取热帖评论失败，请稍后重试");
             }
         } else {
             model.addAttribute("comments", null);
@@ -218,12 +219,12 @@ public class HomeController {
         model.addAttribute("code", code);
         if (code != null && !code.isBlank()) {
             try {
-                StockQuote quote = stockMarketWebService.getQuote(code.trim());
+                StockQuote quote = stockMarketWebService.getQuote(requireStockCode(code));
                 model.addAttribute("quote", quote);
             } catch (Exception e) {
                 log.error("Failed to fetch quote for {}", code, e);
                 model.addAttribute("quote", null);
-                model.addAttribute("error", "获取行情失败: " + e.getMessage());
+                model.addAttribute("error", "获取行情失败，请稍后重试");
             }
         }
         return "quote";
@@ -257,12 +258,15 @@ public class HomeController {
         model.addAttribute("days", days);
         if (code != null && !code.isBlank()) {
             try {
-                List<KLineData> klines = stockMarketWebService.getKLineData(code.trim(), period, days);
+                int safeDays = StockCodeUtils.clamp(days, 1, 500);
+                model.addAttribute("days", safeDays);
+                List<KLineData> klines = stockMarketWebService.getKLineData(
+                        requireStockCode(code), period, safeDays);
                 model.addAttribute("klines", klines);
             } catch (Exception e) {
                 log.error("Failed to fetch kline for {}", code, e);
                 model.addAttribute("klines", Collections.emptyList());
-                model.addAttribute("error", "获取K线失败: " + e.getMessage());
+                model.addAttribute("error", "获取K线失败，请稍后重试");
             }
         }
         return "kline";
@@ -276,12 +280,15 @@ public class HomeController {
         model.addAttribute("days", days);
         if (code != null && !code.isBlank()) {
             try {
-                TechnicalIndicators indicators = stockMarketWebService.getTechnicalIndicators(code.trim(), days);
+                int safeDays = StockCodeUtils.clamp(days, 1, 500);
+                model.addAttribute("days", safeDays);
+                TechnicalIndicators indicators = stockMarketWebService.getTechnicalIndicators(
+                        requireStockCode(code), safeDays);
                 model.addAttribute("indicators", indicators);
             } catch (Exception e) {
                 log.error("Failed to fetch technical indicators for {}", code, e);
                 model.addAttribute("indicators", null);
-                model.addAttribute("error", "获取技术指标失败: " + e.getMessage());
+                model.addAttribute("error", "获取技术指标失败，请稍后重试");
             }
         }
         return "technical";
@@ -317,12 +324,14 @@ public class HomeController {
         model.addAttribute("count", count);
         if (code != null && !code.isBlank()) {
             try {
-                var indicators = financialWebService.getFinancialIndicators(code.trim(), count);
+                int safeCount = StockCodeUtils.clamp(count, 1, 20);
+                model.addAttribute("count", safeCount);
+                var indicators = financialWebService.getFinancialIndicators(requireStockCode(code), safeCount);
                 model.addAttribute("indicators", indicators);
             } catch (Exception e) {
                 log.error("Failed to fetch financial indicators for {}", code, e);
                 model.addAttribute("indicators", Collections.emptyList());
-                model.addAttribute("error", "获取财务指标失败: " + e.getMessage());
+                model.addAttribute("error", "获取财务指标失败，请稍后重试");
             }
         }
         return "financial";
@@ -336,14 +345,20 @@ public class HomeController {
         model.addAttribute("count", count);
         if (code != null && !code.isBlank()) {
             try {
-                var data = financialWebService.getShareholderConcentration(code.trim(), count);
+                int safeCount = StockCodeUtils.clamp(count, 1, 20);
+                model.addAttribute("count", safeCount);
+                var data = financialWebService.getShareholderConcentration(requireStockCode(code), safeCount);
                 model.addAttribute("data", data);
             } catch (Exception e) {
                 log.error("Failed to fetch shareholder concentration for {}", code, e);
                 model.addAttribute("data", Collections.emptyList());
-                model.addAttribute("error", "获取股东集中度失败: " + e.getMessage());
+                model.addAttribute("error", "获取股东集中度失败，请稍后重试");
             }
         }
         return "holdings";
+    }
+
+    private String requireStockCode(String code) {
+        return StockCodeUtils.normalizeWithMarket(code);
     }
 }

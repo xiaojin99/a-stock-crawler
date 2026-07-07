@@ -100,22 +100,13 @@ public class HttpUtils {
      * 用于腾讯财经等返回 GBK 编码的接口
      */
     public static String getWithCharset(String url, Charset charset) throws IOException {
-        RateLimiter.throttle(url);
         Request request = new Request.Builder()
                 .url(url)
                 .header("User-Agent", DEFAULT_USER_AGENT)
                 .get()
                 .build();
 
-        try (Response response = CLIENT.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                throw new IOException("HTTP " + response.code() + " from: " + url);
-            }
-            if (response.body() == null) {
-                throw new IOException("Response body is null from: " + url);
-            }
-            return new String(response.body().bytes(), charset);
-        }
+        return new String(executeBytesWithRetry(request, url), charset);
     }
 
     /**
@@ -127,15 +118,7 @@ public class HttpUtils {
                 .header("User-Agent", DEFAULT_USER_AGENT)
                 .build();
 
-        try (Response response = CLIENT.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                throw new IOException("HTTP " + response.code() + " from: " + url);
-            }
-            if (response.body() == null) {
-                throw new IOException("Response body is null from: " + url);
-            }
-            return response.body().bytes();
-        }
+        return executeBytesWithRetry(request, url);
     }
 
     /**
@@ -260,6 +243,65 @@ public class HttpUtils {
             // 如果还有重试次数，等待指数退避时间
             if (attempt < MAX_RETRIES) {
                 long delay = RETRY_DELAY_MS * (1L << (attempt - 1)); // 1s, 2s, 4s
+                log.info("Retrying in {}ms...", delay);
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Request interrupted: " + url, ie);
+                }
+            }
+        }
+
+        log.error("All {} retries exhausted for: {}", MAX_RETRIES, url);
+        throw lastException != null ? lastException
+                : new IOException("Request failed after " + MAX_RETRIES + " retries: " + url);
+    }
+
+    private static byte[] executeBytesWithRetry(Request request, String url) throws IOException {
+        boolean eastMoneyRequest = isEastMoneyUrl(url);
+        if (!eastMoneyRequest) {
+            RateLimiter.throttle(url);
+        }
+        IOException lastException = null;
+
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            if (eastMoneyRequest) {
+                throttleEastMoney();
+            }
+            try (Response response = CLIENT.newCall(request).execute()) {
+                int code = response.code();
+                if (code >= 400 && code < 500) {
+                    throw new IOException("HTTP " + code + " from: " + url);
+                }
+                if (code >= 500) {
+                    lastException = new IOException("HTTP " + code + " from: " + url);
+                    log.warn("Request failed with HTTP {} [attempt {}/{}]: {}", code, attempt, MAX_RETRIES, url);
+                } else if (!response.isSuccessful()) {
+                    lastException = new IOException("HTTP " + code + " from: " + url);
+                    log.warn("Unexpected HTTP {} [attempt {}/{}]: {}", code, attempt, MAX_RETRIES, url);
+                } else {
+                    if (response.body() == null) {
+                        throw new IOException("Response body is null from: " + url);
+                    }
+                    return response.body().bytes();
+                }
+            } catch (SocketTimeoutException e) {
+                lastException = new IOException("Request timed out [attempt " + attempt + "/" + MAX_RETRIES + "]: " + url, e);
+                log.warn("Request timed out [attempt {}/{}]: {}", attempt, MAX_RETRIES, url);
+            } catch (IOException e) {
+                if (e.getMessage() != null && e.getMessage().startsWith("HTTP 4")) {
+                    throw e;
+                }
+                if (eastMoneyRequest) {
+                    CLIENT.connectionPool().evictAll();
+                }
+                lastException = new IOException("Network error [attempt " + attempt + "/" + MAX_RETRIES + "]: " + url, e);
+                log.warn("Network error [attempt {}/{}]: {} - {}", attempt, MAX_RETRIES, url, e.getMessage());
+            }
+
+            if (attempt < MAX_RETRIES) {
+                long delay = RETRY_DELAY_MS * (1L << (attempt - 1));
                 log.info("Retrying in {}ms...", delay);
                 try {
                     Thread.sleep(delay);

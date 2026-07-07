@@ -55,6 +55,23 @@ class DefaultAStockDataClientTest {
         assertTrue(result.getMessage().contains("simulated eastmoney eof"));
     }
 
+    @Test
+    @DisplayName("单对象能力无数据时不应返回 success=true,data=null")
+    void singleObjectCapabilityReturnsFailureWhenDataIsMissing() {
+        DefaultAStockDataClient client = new DefaultAStockDataClient(
+                new MissingQuoteStockMarketService(),
+                new TechnicalIndicatorService(),
+                new FinancialService(),
+                new ResearchReportService(),
+                new FailingStockIntelligenceService());
+
+        DataResult<StockQuote> result = client.getQuote("600519");
+
+        assertFalse(result.isSuccess());
+        assertEquals("quote:tencent-first", result.getSource());
+        assertTrue(result.getMessage().contains("No data"));
+    }
+
     private static class StubStockMarketService extends StockMarketService {
         @Override
         public StockQuote getQuote(String stockCode) {
@@ -65,6 +82,13 @@ class DefaultAStockDataClientTest {
                     .marketCap(new BigDecimal("1588979000000"))
                     .source("Tencent")
                     .build();
+        }
+    }
+
+    private static class MissingQuoteStockMarketService extends StockMarketService {
+        @Override
+        public StockQuote getQuote(String stockCode) {
+            return null;
         }
     }
 

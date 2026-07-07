@@ -8,6 +8,7 @@ import com.stock.crawler.model.MarketNewsItem;
 import com.stock.crawler.model.StockBasicInfo;
 import com.stock.crawler.model.StockCapabilitySnapshot;
 import com.stock.crawler.model.StockQuote;
+import com.stock.crawler.util.StockCodeUtils;
 import com.stock.web.service.CapabilityWebService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,9 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Locale;
 import java.util.List;
-import java.util.regex.Pattern;
 
 /**
  * stock-crawler 统一能力 JSON API。
@@ -27,9 +26,6 @@ import java.util.regex.Pattern;
 @RestController
 @RequestMapping({"/api/capabilities", "/api/data"})
 public class CapabilityApiController {
-
-    private static final Pattern STOCK_CODE_PATTERN =
-            Pattern.compile("(?i)(\\d{6}|(sh|sz|bj)\\d{6}|\\d{6}\\.(sh|sz|bj)|hk\\d{4,5})");
 
     private final CapabilityWebService capabilityWebService;
 
@@ -90,14 +86,18 @@ public class CapabilityApiController {
     }
 
     private String requireStockCode(String code) {
-        String normalized = code == null ? "" : code.trim().toLowerCase(Locale.ROOT);
-        if (!STOCK_CODE_PATTERN.matcher(normalized).matches()) {
+        try {
+            String pureCode = StockCodeUtils.stripMarket(code);
+            String normalizedWithMarket = StockCodeUtils.normalizeWithMarket(code);
+            if (code != null && code.trim().matches("(?i)^\\d{6}\\.(sh|sz|bj)$")) {
+                return normalizedWithMarket;
+            }
+            if (code != null && code.trim().matches("(?i)^(sh|sz|bj)\\d{6}$")) {
+                return normalizedWithMarket;
+            }
+            return pureCode;
+        } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid stock code");
         }
-        if (normalized.matches("^\\d{6}\\.(sh|sz|bj)$")) {
-            String[] parts = normalized.split("\\.");
-            return parts[1] + parts[0];
-        }
-        return normalized;
     }
 }

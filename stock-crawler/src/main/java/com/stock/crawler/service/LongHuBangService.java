@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.model.LongHuBangDetail;
 import com.stock.crawler.model.LongHuBangItem;
 import com.stock.crawler.util.HttpUtils;
+import com.stock.crawler.util.StockCodeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -105,11 +107,11 @@ public class LongHuBangService {
      * @param tradeDate  交易日期 (格式 YYYY-MM-DD，可为空)
      */
     public LongHuBangResult getLongHuBangList(int pageSize, int pageNumber, String tradeDate) throws IOException {
-        if (pageSize <= 0) pageSize = 50;
-        if (pageSize > 200) pageSize = 200;
+        pageSize = StockCodeUtils.clamp(pageSize, 1, 200);
         if (pageNumber <= 0) pageNumber = 1;
+        String normalizedTradeDate = normalizeTradeDate(tradeDate);
 
-        String cacheKey = pageSize + "_" + pageNumber + "_" + tradeDate;
+        String cacheKey = pageSize + "_" + pageNumber + "_" + normalizedTradeDate;
 
         // 检查缓存
         CacheEntry cached = cache.get(cacheKey);
@@ -121,7 +123,7 @@ public class LongHuBangService {
         }
 
         // 从 API 获取
-        LongHuBangResult result = fetchLongHuBangList(pageSize, pageNumber, tradeDate);
+        LongHuBangResult result = fetchLongHuBangList(pageSize, pageNumber, normalizedTradeDate);
 
         // 更新缓存
         cache.put(cacheKey, new CacheEntry(result.getItems(), result.getTotal()));
@@ -295,5 +297,14 @@ public class LongHuBangService {
     private String textValue(JsonNode parent, String fieldName, String defaultValue) {
         JsonNode value = parent == null ? null : parent.get(fieldName);
         return value == null || value.isNull() ? defaultValue : value.asText();
+    }
+
+    private String normalizeTradeDate(String tradeDate) {
+        if (tradeDate == null || tradeDate.isBlank()) {
+            return null;
+        }
+        String value = tradeDate.trim();
+        LocalDate.parse(value);
+        return value;
     }
 }

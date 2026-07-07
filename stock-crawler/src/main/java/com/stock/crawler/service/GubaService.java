@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.model.GubaComment;
 import com.stock.crawler.model.GubaPost;
 import com.stock.crawler.util.HttpUtils;
+import com.stock.crawler.util.StockCodeUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -46,7 +47,9 @@ public class GubaService {
      * @return 帖子列表
      */
     public List<GubaPost> getPostList(String stockCode, int pageSize, int page) throws IOException {
-        String url = String.format(GUBA_LIST_URL, stockCode);
+        String code = StockCodeUtils.stripMarket(stockCode);
+        int safePageSize = StockCodeUtils.clamp(pageSize, 1, 100);
+        String url = String.format(GUBA_LIST_URL, code);
         log.info("Fetching guba posts from: {}", url);
 
         Map<String, String> headers = Map.of(
@@ -54,11 +57,11 @@ public class GubaService {
         );
 
         String html = HttpUtils.getEastMoney(url, headers);
-        List<GubaPost> posts = parseEmbeddedJson(html, stockCode);
+        List<GubaPost> posts = parseEmbeddedJson(html, code);
 
         // 限制返回数量
-        if (posts.size() > pageSize) {
-            posts = posts.subList(0, pageSize);
+        if (posts.size() > safePageSize) {
+            posts = posts.subList(0, safePageSize);
         }
 
         log.info("Got {} guba posts", posts.size());
@@ -172,7 +175,7 @@ public class GubaService {
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to parse embedded JSON: {}", e.getMessage());
+            throw new IOException("Failed to parse embedded guba JSON for stock: " + stockCode, e);
         }
 
         log.info("Parsed {} posts from embedded JSON", posts.size());

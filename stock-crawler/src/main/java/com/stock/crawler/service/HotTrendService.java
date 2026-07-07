@@ -12,10 +12,15 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 舆情热点聚合服务
@@ -27,6 +32,7 @@ public class HotTrendService {
     private final Map<String, Fetcher> fetchers = new HashMap<>();
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
     private static final Duration CACHE_TTL = Duration.ofMinutes(5);
+    private static final int MAX_CONCURRENT_FETCHERS = 4;
 
     private static class CacheEntry {
         final List<HotItem> items;
@@ -109,22 +115,41 @@ public class HotTrendService {
      * 并发获取指定平台的热点数据
      */
     public List<HotTrendResult> getHotTrends(List<String> platforms) {
+        List<String> requestedPlatforms = normalizeRequestedPlatforms(platforms);
         List<HotTrendResult> results = new ArrayList<>();
+        if (requestedPlatforms.isEmpty()) {
+            return results;
+        }
 
-        try (ExecutorService executor = Executors.newFixedThreadPool(platforms.size())) {
-            for (String platform : platforms) {
-                executor.submit(() -> {
-                    HotTrendResult result = getHotTrend(platform);
-                    synchronized (results) {
-                        results.add(result);
-                    }
-                });
+        int poolSize = Math.min(MAX_CONCURRENT_FETCHERS, requestedPlatforms.size());
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+                poolSize,
+                poolSize,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(requestedPlatforms.size()),
+                hotTrendThreadFactory(),
+                new ThreadPoolExecutor.CallerRunsPolicy());
+        try {
+            List<Callable<HotTrendResult>> tasks = requestedPlatforms.stream()
+                    .<Callable<HotTrendResult>>map(platform -> () -> getHotTrend(platform))
+                    .toList();
+            List<Future<HotTrendResult>> futures = executor.invokeAll(tasks, 30, TimeUnit.SECONDS);
+            for (Future<HotTrendResult> future : futures) {
+                if (future.isCancelled()) {
+                    continue;
+                }
+                try {
+                    results.add(future.get());
+                } catch (ExecutionException ex) {
+                    log.warn("hot_trend_task_failed message={}", ex.getMessage(), ex);
+                }
             }
-            executor.shutdown();
-            executor.awaitTermination(30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("Interrupted while fetching hot trends", e);
+        } finally {
+            executor.shutdownNow();
         }
 
         // 若所有平台均失败，输出汇总日志
@@ -137,5 +162,31 @@ public class HotTrendService {
         }
 
         return results;
+    }
+
+    private List<String> normalizeRequestedPlatforms(List<String> platforms) {
+        if (platforms == null || platforms.isEmpty()) {
+            return List.of();
+        }
+        Set<String> uniquePlatforms = new LinkedHashSet<>();
+        for (String platform : platforms) {
+            if (platform == null || platform.isBlank()) {
+                continue;
+            }
+            String normalized = platform.trim();
+            if (fetchers.containsKey(normalized)) {
+                uniquePlatforms.add(normalized);
+            }
+        }
+        return new ArrayList<>(uniquePlatforms);
+    }
+
+    private ThreadFactory hotTrendThreadFactory() {
+        AtomicInteger sequence = new AtomicInteger(1);
+        return runnable -> {
+            Thread thread = new Thread(runnable, "hot-trend-fetch-" + sequence.getAndIncrement());
+            thread.setDaemon(true);
+            return thread;
+        };
     }
 }

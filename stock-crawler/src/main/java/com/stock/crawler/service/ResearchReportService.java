@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.model.ResearchReport;
 import com.stock.crawler.util.HttpUtils;
+import com.stock.crawler.util.StockCodeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,18 +67,14 @@ public class ResearchReportService {
      * @return 研报响应
      */
     public ReportResponse getResearchReports(String stockCode, int pageSize, int pageNo) throws IOException {
-        // 去除股票代码前缀
-        String code = stockCode;
-        if (code.startsWith("sz")) {
-            code = code.substring(2);
-        } else if (code.startsWith("sh")) {
-            code = code.substring(2);
-        }
+        String code = StockCodeUtils.stripMarket(stockCode);
+        int safePageSize = StockCodeUtils.clamp(pageSize, 1, 100);
+        int safePageNo = Math.max(pageNo, 1);
 
         int nextYear = Year.now().getValue() + 1;
         String url = String.format("%s?industryCode=*&pageSize=%d&industry=*&rating=*&ratingChange=*" +
                         "&beginTime=2020-01-01&endTime=%d-01-01&pageNo=%d&fields=&qType=0&orgCode=&code=%s&rcode=",
-                EASTMONEY_REPORT_API, pageSize, nextYear, pageNo, code);
+                EASTMONEY_REPORT_API, safePageSize, nextYear, safePageNo, code);
 
         log.info("Fetching research reports for stock: {}", code);
 

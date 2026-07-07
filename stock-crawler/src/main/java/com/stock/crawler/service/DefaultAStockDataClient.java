@@ -233,6 +233,9 @@ public class DefaultAStockDataClient implements AStockDataClient {
         try {
             T data = supplier.get();
             long elapsedMs = elapsedMs(startedAt);
+            if (data == null) {
+                return DataResult.failure(source, "No data returned from " + source, elapsedMs);
+            }
             return DataResult.success(data, source, elapsedMs);
         } catch (Exception ex) {
             long elapsedMs = elapsedMs(startedAt);

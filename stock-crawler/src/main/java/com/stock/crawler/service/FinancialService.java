@@ -6,6 +6,7 @@ import com.stock.crawler.model.FinancialIndicator;
 import com.stock.crawler.model.InstitutionalHolding;
 import com.stock.crawler.model.ShareholderConcentration;
 import com.stock.crawler.util.HttpUtils;
+import com.stock.crawler.util.StockCodeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,6 +43,7 @@ public class FinancialService {
      */
     public List<FinancialIndicator> getMainFinancialIndicators(String stockCode, int count) throws IOException {
         String code = stripCodePrefix(stockCode);
+        int safeCount = StockCodeUtils.clamp(count, 1, 20);
         String filter = URLEncoder.encode("(SECURITY_CODE=\"" + code + "\")", StandardCharsets.UTF_8);
 
         String url = String.format("%s?reportName=RPT_F10_FINANCE_MAINFINADATA"
@@ -50,7 +52,7 @@ public class FinancialService {
                         + "&pageNumber=1&pageSize=%d"
                         + "&sortTypes=-1&sortColumns=REPORT_DATE"
                         + "&source=HSF10&client=PC",
-                DATACENTER_API, filter, count);
+                DATACENTER_API, filter, safeCount);
 
         log.info("fetching_financial_indicators code={}", code);
 
@@ -76,6 +78,7 @@ public class FinancialService {
      */
     public List<ShareholderConcentration> getShareholderConcentration(String stockCode, int count) throws IOException {
         String code = stripCodePrefix(stockCode);
+        int safeCount = StockCodeUtils.clamp(count, 1, 20);
         String filter = URLEncoder.encode("(SECURITY_CODE=\"" + code + "\")", StandardCharsets.UTF_8);
 
         String url = String.format("%s?reportName=RPT_F10_EH_HOLDERNUM"
@@ -84,7 +87,7 @@ public class FinancialService {
                         + "&pageNumber=1&pageSize=%d"
                         + "&sortTypes=-1&sortColumns=END_DATE"
                         + "&source=HSF10&client=PC",
-                DATACENTER_API, filter, count);
+                DATACENTER_API, filter, safeCount);
 
         log.info("fetching_shareholder_concentration code={}", code);
 
@@ -234,11 +237,7 @@ public class FinancialService {
     // ==================== 工具方法 ====================
 
     private String stripCodePrefix(String stockCode) {
-        if (stockCode == null) return "";
-        if (stockCode.startsWith("sz") || stockCode.startsWith("sh")) {
-            return stockCode.substring(2);
-        }
-        return stockCode;
+        return StockCodeUtils.stripMarket(stockCode);
     }
 
     private Double doubleValue(JsonNode node, String field) {
