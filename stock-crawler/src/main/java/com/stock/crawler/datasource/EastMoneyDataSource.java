@@ -2,6 +2,7 @@ package com.stock.crawler.datasource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.stock.crawler.exception.MarketDataAccessException;
 import com.stock.crawler.model.KLineData;
 import com.stock.crawler.model.StockQuote;
 import com.stock.crawler.util.HttpUtils;
@@ -84,69 +85,56 @@ public class EastMoneyDataSource implements MarketDataSource {
             String body = HttpUtils.getEastMoney(url, Map.of("Referer", "https://quote.eastmoney.com/"));
             return parseKLineData(stockCode, period, body);
         } catch (IOException ex) {
-            log.warn("eastmoney_kline_io_failed stockCode={} period={} days={} message={}",
-                    stockCode, period, days, ex.getMessage());
-            log.debug("eastmoney_kline_io_failed_stack stockCode={} period={} days={}",
-                    stockCode, period, days, ex);
-            return new ArrayList<>();
+            throw new MarketDataAccessException(
+                    getName(), "kline", "EastMoney K-line request failed", ex);
         } catch (RuntimeException ex) {
-            log.warn("eastmoney_kline_runtime_failed stockCode={} period={} days={} message={}",
-                    stockCode, period, days, ex.getMessage());
-            log.debug("eastmoney_kline_runtime_failed_stack stockCode={} period={} days={}",
-                    stockCode, period, days, ex);
-            return new ArrayList<>();
+            throw new MarketDataAccessException(
+                    getName(), "kline", "EastMoney K-line response parsing failed", ex);
         }
     }
 
-    private List<KLineData> parseKLineData(String stockCode, String period, String body) {
+    private List<KLineData> parseKLineData(String stockCode, String period, String body)
+            throws IOException {
         List<KLineData> klineList = new ArrayList<>();
-        try {
-            body = unwrapJsonBody(body);
+        body = unwrapJsonBody(body);
 
-            JsonNode root = objectMapper.readTree(body);
-            JsonNode data = root.path("data");
+        JsonNode root = objectMapper.readTree(body);
+        JsonNode data = root.path("data");
 
-            if (data.isMissingNode() || data.isNull()) {
-                return klineList;
+        if (data.isMissingNode() || data.isNull()) {
+            return klineList;
+        }
+
+        JsonNode klines = data.path("klines");
+        if (!klines.isArray()) {
+            return klineList;
+        }
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+        for (JsonNode klineNode : klines) {
+            String klineStr = klineNode.asText();
+            String[] fields = klineStr.split(",");
+
+            if (fields.length < 6) {
+                continue;
             }
 
-            JsonNode klines = data.path("klines");
-            if (!klines.isArray()) {
-                return klineList;
-            }
+            KLineData kline = KLineData.builder()
+                    .code(stockCode)
+                    .date(LocalDate.parse(fields[0], formatter))
+                    .open(ParseUtils.parseBigDecimal(fields[1]))
+                    .close(ParseUtils.parseBigDecimal(fields[2]))
+                    .high(ParseUtils.parseBigDecimal(fields[3]))
+                    .low(ParseUtils.parseBigDecimal(fields[4]))
+                    .volume(ParseUtils.parseLong(fields[5]))
+                    .amount(fields.length > 6 ? ParseUtils.parseBigDecimal(fields[6]) : BigDecimal.ZERO)
+                    .changePercent(fields.length > 7 ? ParseUtils.parseBigDecimal(fields[7]) : BigDecimal.ZERO)
+                    .turnoverRate(fields.length > 8 ? ParseUtils.parseBigDecimal(fields[8]) : BigDecimal.ZERO)
+                    .period(period)
+                    .build();
 
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
-            for (JsonNode klineNode : klines) {
-                String klineStr = klineNode.asText();
-                String[] fields = klineStr.split(",");
-
-                if (fields.length < 6) {
-                    continue;
-                }
-
-                KLineData kline = KLineData.builder()
-                        .code(stockCode)
-                        .date(LocalDate.parse(fields[0], formatter))
-                        .open(ParseUtils.parseBigDecimal(fields[1]))
-                        .close(ParseUtils.parseBigDecimal(fields[2]))
-                        .high(ParseUtils.parseBigDecimal(fields[3]))
-                        .low(ParseUtils.parseBigDecimal(fields[4]))
-                        .volume(ParseUtils.parseLong(fields[5]))
-                        .amount(fields.length > 6 ? ParseUtils.parseBigDecimal(fields[6]) : BigDecimal.ZERO)
-                        .changePercent(fields.length > 7 ? ParseUtils.parseBigDecimal(fields[7]) : BigDecimal.ZERO)
-                        .turnoverRate(fields.length > 8 ? ParseUtils.parseBigDecimal(fields[8]) : BigDecimal.ZERO)
-                        .period(period)
-                        .build();
-
-                klineList.add(kline);
-            }
-        } catch (IOException ex) {
-            log.warn("eastmoney_kline_parse_io_failed stockCode={} period={} message={}",
-                    stockCode, period, ex.getMessage(), ex);
-        } catch (RuntimeException ex) {
-            log.warn("eastmoney_kline_parse_runtime_failed stockCode={} period={} message={}",
-                    stockCode, period, ex.getMessage(), ex);
+            klineList.add(kline);
         }
         return klineList;
     }

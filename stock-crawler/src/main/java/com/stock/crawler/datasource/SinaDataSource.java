@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.stock.crawler.exception.MarketDataAccessException;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -174,9 +175,8 @@ public class SinaDataSource implements MarketDataSource {
                 return parseSinaKLineData(stockCode, period, body);
             }
         } catch (Exception ex) {
-            log.warn("sina_kline_failed stockCode={} period={} days={} message={}",
-                    stockCode, period, days, ex.getMessage(), ex);
-            return new ArrayList<>();
+            throw new MarketDataAccessException(
+                    getName(), "kline", "Sina K-line request or parsing failed", ex);
         }
     }
 
@@ -211,38 +211,34 @@ public class SinaDataSource implements MarketDataSource {
      * JSONP 格式: =([{...},{...}]);
      * 每个 JSON 对象含: day, open, high, low, close, volume
      */
-    private List<KLineData> parseSinaKLineData(String stockCode, String period, String body) {
+    private List<KLineData> parseSinaKLineData(String stockCode, String period, String body)
+            throws IOException {
         List<KLineData> klineList = new ArrayList<>();
-        try {
-            // 移除 JSONP 包装: =([...]);  -> [...]
-            int start = body.indexOf("([");
-            int end = body.indexOf("])");
-            if (start == -1 || end == -1) {
-                return klineList;
-            }
-            String json = body.substring(start + 1, end + 1);
+        // 移除 JSONP 包装: =([...]);  -> [...]
+        int start = body.indexOf("([");
+        int end = body.indexOf("])");
+        if (start == -1 || end == -1) {
+            return klineList;
+        }
+        String json = body.substring(start + 1, end + 1);
 
-            JsonNode array = objectMapper.readTree(json);
-            if (!array.isArray()) {
-                return klineList;
-            }
+        JsonNode array = objectMapper.readTree(json);
+        if (!array.isArray()) {
+            return klineList;
+        }
 
-            for (JsonNode node : array) {
-                KLineData kline = KLineData.builder()
-                        .code(stockCode)
-                        .date(LocalDate.parse(node.path("day").asText(), KLINE_DATE))
-                        .open(ParseUtils.parseBigDecimal(textValue(node, "open", "0")))
-                        .high(ParseUtils.parseBigDecimal(textValue(node, "high", "0")))
-                        .low(ParseUtils.parseBigDecimal(textValue(node, "low", "0")))
-                        .close(ParseUtils.parseBigDecimal(textValue(node, "close", "0")))
-                        .volume(node.path("volume").asLong(0))
-                        .period(period)
-                        .build();
-                klineList.add(kline);
-            }
-        } catch (Exception ex) {
-            log.warn("sina_kline_parse_failed stockCode={} period={} message={}",
-                    stockCode, period, ex.getMessage(), ex);
+        for (JsonNode node : array) {
+            KLineData kline = KLineData.builder()
+                    .code(stockCode)
+                    .date(LocalDate.parse(node.path("day").asText(), KLINE_DATE))
+                    .open(ParseUtils.parseBigDecimal(textValue(node, "open", "0")))
+                    .high(ParseUtils.parseBigDecimal(textValue(node, "high", "0")))
+                    .low(ParseUtils.parseBigDecimal(textValue(node, "low", "0")))
+                    .close(ParseUtils.parseBigDecimal(textValue(node, "close", "0")))
+                    .volume(node.path("volume").asLong(0))
+                    .period(period)
+                    .build();
+            klineList.add(kline);
         }
         return klineList;
     }

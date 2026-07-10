@@ -2,6 +2,7 @@ package com.stock.crawler.datasource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.stock.crawler.exception.MarketDataAccessException;
 import com.stock.crawler.model.KLineData;
 import com.stock.crawler.model.StockQuote;
 import com.stock.crawler.util.ParseUtils;
@@ -77,21 +78,14 @@ public class BaiduKLineDataSource implements MarketDataSource {
             return parseKLineData(stockCode, normalizePeriod(period), days, body);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            log.warn("baidu_kline_interrupted stockCode={} period={} days={}",
-                    stockCode, period, days);
-            return new ArrayList<>();
+            throw new MarketDataAccessException(
+                    getName(), "kline", "Baidu K-line request interrupted", ex);
         } catch (IOException ex) {
-            log.warn("baidu_kline_io_failed stockCode={} period={} days={} message={}",
-                    stockCode, period, days, ex.getMessage());
-            log.debug("baidu_kline_io_failed_stack stockCode={} period={} days={}",
-                    stockCode, period, days, ex);
-            return new ArrayList<>();
+            throw new MarketDataAccessException(
+                    getName(), "kline", "Baidu K-line request failed", ex);
         } catch (RuntimeException ex) {
-            log.warn("baidu_kline_runtime_failed stockCode={} period={} days={} message={}",
-                    stockCode, period, days, ex.getMessage());
-            log.debug("baidu_kline_runtime_failed_stack stockCode={} period={} days={}",
-                    stockCode, period, days, ex);
-            return new ArrayList<>();
+            throw new MarketDataAccessException(
+                    getName(), "kline", "Baidu K-line response parsing failed", ex);
         }
     }
 
@@ -131,9 +125,8 @@ public class BaiduKLineDataSource implements MarketDataSource {
             throws IOException {
         JsonNode root = objectMapper.readTree(body);
         if (!"0".equals(root.path("ResultCode").asText())) {
-            log.warn("baidu_kline_response_failed stockCode={} resultCode={} message={}",
-                    stockCode, root.path("ResultCode").asText(), root.path("ResultMessage").asText());
-            return new ArrayList<>();
+            throw new IOException("Baidu K-line response failed: "
+                    + root.path("ResultCode").asText());
         }
 
         JsonNode marketDataNode = root.path("Result").path("newMarketData").path("marketData");
