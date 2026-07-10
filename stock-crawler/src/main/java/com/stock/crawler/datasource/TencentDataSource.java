@@ -1,5 +1,6 @@
 package com.stock.crawler.datasource;
 
+import com.stock.crawler.exception.MarketDataAccessException;
 import com.stock.crawler.model.KLineData;
 import com.stock.crawler.model.StockQuote;
 import com.stock.crawler.util.HttpUtils;
@@ -7,11 +8,13 @@ import com.stock.crawler.util.ParseUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 腾讯财经数据源
@@ -30,6 +33,16 @@ public class TencentDataSource implements MarketDataSource {
     /** 涨跌幅百分比计算分母 */
     private static final BigDecimal HUNDRED = new BigDecimal("100");
 
+    private final QuoteBodyFetcher quoteBodyFetcher;
+
+    public TencentDataSource() {
+        this(url -> HttpUtils.getWithCharset(url, HttpUtils.GBK));
+    }
+
+    TencentDataSource(QuoteBodyFetcher quoteBodyFetcher) {
+        this.quoteBodyFetcher = Objects.requireNonNull(quoteBodyFetcher, "quoteBodyFetcher");
+    }
+
     @Override
     public String getName() {
         return "Tencent";
@@ -43,12 +56,42 @@ public class TencentDataSource implements MarketDataSource {
         try {
             String codesParam = String.join(",", stockCodes);
             String url = String.format(TENCENT_QUOTE_URL, codesParam);
-            String body = HttpUtils.getWithCharset(url, HttpUtils.GBK);
+            String body = quoteBodyFetcher.fetch(url);
+            validateResponse(body);
             return parseTencentQuotes(body);
+        } catch (MarketDataAccessException ex) {
+            throw ex;
         } catch (Exception ex) {
-            log.warn("tencent_quote_failed message={}", ex.getMessage(), ex);
-            return new ArrayList<>();
+            throw new MarketDataAccessException(
+                    getName(),
+                    "quote",
+                    "Tencent quote request failed for " + stockCodes.size() + " stock code(s)",
+                    ex);
         }
+    }
+
+    private void validateResponse(String body) {
+        if (body == null || body.isBlank()) {
+            return;
+        }
+
+        for (String line : body.split(";")) {
+            if (line == null || line.isBlank()) {
+                continue;
+            }
+            int eqIdx = line.indexOf("=\"");
+            int dataStart = eqIdx + 2;
+            int dataEnd = line.lastIndexOf('"');
+            if (line.startsWith("v_") && eqIdx > 2 && dataEnd >= dataStart) {
+                return;
+            }
+        }
+
+        throw new MarketDataAccessException(
+                getName(),
+                "quote",
+                "Tencent quote response has invalid format",
+                null);
     }
 
     /**
@@ -161,5 +204,10 @@ public class TencentDataSource implements MarketDataSource {
     @Override
     public int getPriority() {
         return 0;
+    }
+
+    @FunctionalInterface
+    interface QuoteBodyFetcher {
+        String fetch(String url) throws IOException;
     }
 }
