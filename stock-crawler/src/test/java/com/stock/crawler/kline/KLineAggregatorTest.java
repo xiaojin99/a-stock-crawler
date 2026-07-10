@@ -9,6 +9,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @DisplayName("K 线周期聚合测试")
 class KLineAggregatorTest {
@@ -73,6 +75,66 @@ class KLineAggregatorTest {
         assertEquals(253, KLineAggregator.requiredDailyBars("month", 10));
         assertEquals(12_750, KLineAggregator.requiredDailyBars("year", 50));
         assertEquals(13_000, KLineAggregator.requiredDailyBars("year", 100));
+    }
+
+    @Test
+    @DisplayName("ISO 周应跨自然年聚合并过滤缺失 OHLC 的记录")
+    void aggregatesIsoWeeksAcrossCalendarYear() {
+        KLineData missingClose = kline("2025-01-02", "12", "13", "11", "12", 99L, "99", "1");
+        missingClose.setClose(null);
+        List<KLineData> daily = List.of(
+                kline("2025-01-03", "12", "15", "11", "14", 30L, "300", "3"),
+                missingClose,
+                kline("2024-12-29", "9", "11", "8", "10", 10L, "100", "1"),
+                kline("2024-12-30", "10", "13", "9", "12", 20L, "200", "2"));
+
+        List<KLineData> result = KLineAggregator.aggregate(daily, "weekly", 2);
+
+        assertEquals(2, result.size());
+        assertEquals(LocalDate.of(2024, 12, 29), result.getFirst().getDate());
+        KLineData isoWeekOne = result.getLast();
+        assertEquals(LocalDate.of(2025, 1, 3), isoWeekOne.getDate());
+        assertDecimal("10", isoWeekOne.getOpen());
+        assertDecimal("15", isoWeekOne.getHigh());
+        assertDecimal("9", isoWeekOne.getLow());
+        assertDecimal("14", isoWeekOne.getClose());
+        assertDecimal("40.00", isoWeekOne.getChangePercent());
+        assertEquals("week", isoWeekOne.getPeriod());
+    }
+
+    @Test
+    @DisplayName("日 K 应排序、复制并截取最近 N 根")
+    void copiesAndLimitsDailyBars() {
+        KLineData newer = kline("2025-01-03", "12", "13", "11", "12", 20L, "200", "2");
+        KLineData older = kline("2025-01-02", "10", "11", "9", "10", 10L, "100", "1");
+
+        List<KLineData> result = KLineAggregator.aggregate(List.of(newer, older), null, 1);
+
+        assertEquals(1, result.size());
+        assertEquals(newer.getDate(), result.getFirst().getDate());
+        assertEquals("day", result.getFirst().getPeriod());
+        assertNotSame(newer, result.getFirst());
+    }
+
+    @Test
+    @DisplayName("空输入、非正根数和前收为零应安全处理")
+    void handlesEmptyInputAndZeroPreviousClose() {
+        assertEquals(List.of(), KLineAggregator.aggregate(null, "day", 1));
+        assertEquals(List.of(), KLineAggregator.aggregate(List.of(), "day", 1));
+        assertEquals(List.of(), KLineAggregator.aggregate(
+                List.of(kline("2025-01-02", "10", "11", "9", "10", 1L, "1", "1")),
+                "day",
+                0));
+        assertEquals(0, KLineAggregator.requiredDailyBars("month", 0));
+        assertEquals(46, KLineAggregator.requiredDailyBars("m", 1));
+        assertEquals(500, KLineAggregator.requiredDailyBars("y", 1));
+
+        List<KLineData> yearly = KLineAggregator.aggregate(List.of(
+                kline("2023-12-29", "0", "0", "0", "0", 1L, "1", "1"),
+                kline("2024-12-31", "1", "2", "1", "2", 1L, "1", "1")), "year", 1);
+
+        assertEquals(1, yearly.size());
+        assertNull(yearly.getFirst().getChangePercent());
     }
 
     private KLineData kline(
