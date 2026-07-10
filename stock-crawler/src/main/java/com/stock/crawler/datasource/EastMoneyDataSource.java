@@ -59,6 +59,22 @@ public class EastMoneyDataSource implements MarketDataSource {
     }
 
     @Override
+    public boolean supportsRealTimeQuotes() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsKLinePeriod(String period) {
+        if (period == null || period.isBlank()) {
+            return true;
+        }
+        return switch (period.trim().toLowerCase()) {
+            case "day", "daily", "d", "week", "weekly", "w", "month", "monthly", "m" -> true;
+            default -> false;
+        };
+    }
+
+    @Override
     public List<KLineData> getKLineData(String stockCode, String period, int days) {
         try {
             String secId = convertToSecId(stockCode);

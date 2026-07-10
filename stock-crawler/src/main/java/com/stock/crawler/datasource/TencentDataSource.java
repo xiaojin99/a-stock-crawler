@@ -143,6 +143,11 @@ public class TencentDataSource implements MarketDataSource {
     }
 
     @Override
+    public boolean supportsKLinePeriod(String period) {
+        return false;
+    }
+
+    @Override
     public List<StockQuote> searchStock(String keyword) {
         // 腾讯数据源不支持搜索，由 SinaDataSource 实现
         return new ArrayList<>();

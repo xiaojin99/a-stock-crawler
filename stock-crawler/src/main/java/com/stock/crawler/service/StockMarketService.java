@@ -5,6 +5,7 @@ import com.stock.crawler.datasource.EastMoneyDataSource;
 import com.stock.crawler.datasource.MarketDataSource;
 import com.stock.crawler.datasource.SinaDataSource;
 import com.stock.crawler.datasource.TencentDataSource;
+import com.stock.crawler.kline.KLineAggregator;
 import com.stock.crawler.model.KLineData;
 import com.stock.crawler.model.StockQuote;
 import com.stock.crawler.model.TechnicalIndicators;
@@ -186,6 +187,9 @@ public class StockMarketService {
             if (!dataSource.isAvailable()) {
                 continue;
             }
+            if (!dataSource.supportsRealTimeQuotes()) {
+                continue;
+            }
             try {
                 List<String> requestCodes = new ArrayList<>(unresolvedCodes);
                 List<StockQuote> quotes = dataSource.getRealTimeQuotes(requestCodes);
@@ -207,14 +211,21 @@ public class StockMarketService {
     }
 
     private List<KLineData> fetchKLineFromDataSource(String stockCode, String period, int days) {
+        int requiredDailyBars = KLineAggregator.requiredDailyBars(period, days);
         for (MarketDataSource dataSource : dataSources) {
             if (!dataSource.isAvailable()) {
                 continue;
             }
+            if (!dataSource.supportsKLinePeriod("day")) {
+                continue;
+            }
             try {
-                List<KLineData> klines = dataSource.getKLineData(stockCode, period, days);
-                if (!klines.isEmpty()) {
-                    return klines;
+                List<KLineData> dailyKlines = dataSource.getKLineData(stockCode, "day", requiredDailyBars);
+                if (!dailyKlines.isEmpty()) {
+                    List<KLineData> aggregated = KLineAggregator.aggregate(dailyKlines, period, days);
+                    if (!aggregated.isEmpty()) {
+                        return aggregated;
+                    }
                 }
             } catch (RuntimeException ex) {
                 log.warn("market_data_source_kline_failed source={} stockCode={} period={} days={} message={}",
@@ -236,6 +247,7 @@ public class StockMarketService {
             case "day", "daily", "d" -> "day";
             case "week", "weekly", "w" -> "week";
             case "month", "monthly", "m" -> "month";
+            case "year", "yearly", "y" -> "year";
             default -> "day";
         };
     }

@@ -180,6 +180,17 @@ public class SinaDataSource implements MarketDataSource {
         }
     }
 
+    @Override
+    public boolean supportsKLinePeriod(String period) {
+        if (period == null || period.isBlank()) {
+            return true;
+        }
+        return switch (period.trim().toLowerCase()) {
+            case "day", "daily", "d", "week", "weekly", "w", "month", "monthly", "m" -> true;
+            default -> false;
+        };
+    }
+
     /**
      * 新浪 K 线周期映射: scale 参数
      */

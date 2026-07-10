@@ -53,6 +53,16 @@ public class BaiduKLineDataSource implements MarketDataSource {
     }
 
     @Override
+    public boolean supportsRealTimeQuotes() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsKLinePeriod(String period) {
+        return supportsPeriod(period);
+    }
+
+    @Override
     public List<KLineData> getKLineData(String stockCode, String period, int days) {
         if (!supportsPeriod(period)) {
             return new ArrayList<>();
