@@ -55,6 +55,14 @@ class TencentDataSourceFailureTest {
     }
 
     @Test
+    @DisplayName("空响应应保持空结果而不是健康失败")
+    void keepsBlankResponseAsEmptyResult() {
+        TencentDataSource dataSource = new TencentDataSource(url -> "");
+
+        assertTrue(dataSource.getRealTimeQuotes(List.of("sz300750")).isEmpty());
+    }
+
+    @Test
     @DisplayName("空代码列表不应发起网络请求")
     void skipsRequestForEmptyCodes() {
         AtomicInteger calls = new AtomicInteger();
