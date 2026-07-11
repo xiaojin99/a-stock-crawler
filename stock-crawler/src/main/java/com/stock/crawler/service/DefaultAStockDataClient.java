@@ -13,9 +13,11 @@ import com.stock.crawler.model.StockBasicInfo;
 import com.stock.crawler.model.StockCapabilitySnapshot;
 import com.stock.crawler.model.StockQuote;
 import com.stock.crawler.model.TechnicalIndicators;
+import com.stock.crawler.model.TradingCalendarSnapshot;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,10 +35,12 @@ public class DefaultAStockDataClient implements AStockDataClient {
     private final FinancialService financialService;
     private final ResearchReportService researchReportService;
     private final StockIntelligenceService stockIntelligenceService;
+    private final TradingCalendarService tradingCalendarService;
 
     public DefaultAStockDataClient() {
         this(new StockMarketService(), new TechnicalIndicatorService(), new FinancialService(),
-                new ResearchReportService(), new StockIntelligenceService());
+                new ResearchReportService(), new StockIntelligenceService(),
+                new TradingCalendarService());
     }
 
     public DefaultAStockDataClient(
@@ -45,11 +49,23 @@ public class DefaultAStockDataClient implements AStockDataClient {
             FinancialService financialService,
             ResearchReportService researchReportService,
             StockIntelligenceService stockIntelligenceService) {
+        this(stockMarketService, technicalIndicatorService, financialService,
+                researchReportService, stockIntelligenceService, new TradingCalendarService());
+    }
+
+    public DefaultAStockDataClient(
+            StockMarketService stockMarketService,
+            TechnicalIndicatorService technicalIndicatorService,
+            FinancialService financialService,
+            ResearchReportService researchReportService,
+            StockIntelligenceService stockIntelligenceService,
+            TradingCalendarService tradingCalendarService) {
         this.stockMarketService = stockMarketService;
         this.technicalIndicatorService = technicalIndicatorService;
         this.financialService = financialService;
         this.researchReportService = researchReportService;
         this.stockIntelligenceService = stockIntelligenceService;
+        this.tradingCalendarService = tradingCalendarService;
     }
 
     @Override
@@ -66,6 +82,11 @@ public class DefaultAStockDataClient implements AStockDataClient {
     public DataResult<List<KLineData>> getKLineData(String stockCode, String period, int days) {
         return wrap("kline:baidu-tencent-eastmoney-fallback",
                 () -> stockMarketService.getKLineData(stockCode, period, days));
+    }
+
+    @Override
+    public DataResult<TradingCalendarSnapshot> getTradingCalendar(YearMonth month) {
+        return tradingCalendarService.getTradingCalendar(month);
     }
 
     @Override

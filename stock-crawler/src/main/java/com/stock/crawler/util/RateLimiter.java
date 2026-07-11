@@ -29,6 +29,7 @@ public final class RateLimiter {
             "cls.cn",         1000L,
             "weibo.com",      1000L,
             "baidu.com",       500L,
+            "szse.cn",         500L,
             "sinajs.cn",       500L,
             "gtimg.cn",        300L
     );

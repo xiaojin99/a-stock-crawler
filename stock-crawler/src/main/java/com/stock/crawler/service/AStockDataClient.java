@@ -13,7 +13,9 @@ import com.stock.crawler.model.StockBasicInfo;
 import com.stock.crawler.model.StockCapabilitySnapshot;
 import com.stock.crawler.model.StockQuote;
 import com.stock.crawler.model.TechnicalIndicators;
+import com.stock.crawler.model.TradingCalendarSnapshot;
 
+import java.time.YearMonth;
 import java.util.List;
 
 /**
@@ -26,6 +28,8 @@ public interface AStockDataClient {
     DataResult<List<StockQuote>> getQuotes(List<String> stockCodes);
 
     DataResult<List<KLineData>> getKLineData(String stockCode, String period, int days);
+
+    DataResult<TradingCalendarSnapshot> getTradingCalendar(YearMonth month);
 
     DataResult<TechnicalIndicators> getTechnicalIndicators(String stockCode, int days);
 
