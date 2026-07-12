@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.model.TradingCalendarDay;
 import com.stock.crawler.model.TradingCalendarSnapshot;
 import com.stock.crawler.model.TradingDayStatus;
+import com.stock.crawler.util.CrawlerRequestPolicy;
 import com.stock.crawler.util.HttpUtils;
 
 import java.io.IOException;
@@ -37,7 +38,8 @@ public class EastMoneyTradingCalendarDataSource implements TradingCalendarDataSo
     private final CalendarBodyFetcher bodyFetcher;
 
     public EastMoneyTradingCalendarDataSource() {
-        this(url -> HttpUtils.getEastMoney(url, HEADERS));
+        this(url -> HttpUtils.getEastMoney(
+                url, HEADERS, CrawlerRequestPolicy.backgroundNews()));
     }
 
     EastMoneyTradingCalendarDataSource(CalendarBodyFetcher bodyFetcher) {

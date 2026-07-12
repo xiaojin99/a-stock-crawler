@@ -20,7 +20,7 @@ class TencentDataSourceFailureTest {
     @DisplayName("网络超时应包装为行情访问异常并保留原因")
     void wrapsNetworkTimeoutAsMarketDataAccessException() {
         SocketTimeoutException timeout = new SocketTimeoutException("simulated timeout");
-        TencentDataSource dataSource = new TencentDataSource(url -> {
+        TencentDataSource dataSource = new TencentDataSource((url, policy) -> {
             throw timeout;
         });
 
@@ -36,7 +36,8 @@ class TencentDataSourceFailureTest {
     @Test
     @DisplayName("非空非法响应应报告解析失败")
     void rejectsMalformedNonEmptyResponse() {
-        TencentDataSource dataSource = new TencentDataSource(url -> "<html>rate limited</html>");
+        TencentDataSource dataSource = new TencentDataSource(
+                (url, policy) -> "<html>rate limited</html>");
 
         MarketDataAccessException exception = assertThrows(
                 MarketDataAccessException.class,
@@ -49,7 +50,8 @@ class TencentDataSourceFailureTest {
     @Test
     @DisplayName("合法无匹配响应应保持空结果而不是健康失败")
     void keepsNoMatchResponseAsEmptyResult() {
-        TencentDataSource dataSource = new TencentDataSource(url -> "v_pv_none_match=\"1\";");
+        TencentDataSource dataSource = new TencentDataSource(
+                (url, policy) -> "v_pv_none_match=\"1\";");
 
         assertTrue(dataSource.getRealTimeQuotes(List.of("sz999999")).isEmpty());
     }
@@ -57,7 +59,7 @@ class TencentDataSourceFailureTest {
     @Test
     @DisplayName("空响应应保持空结果而不是健康失败")
     void keepsBlankResponseAsEmptyResult() {
-        TencentDataSource dataSource = new TencentDataSource(url -> "");
+        TencentDataSource dataSource = new TencentDataSource((url, policy) -> "");
 
         assertTrue(dataSource.getRealTimeQuotes(List.of("sz300750")).isEmpty());
     }
@@ -66,7 +68,7 @@ class TencentDataSourceFailureTest {
     @DisplayName("空代码列表不应发起网络请求")
     void skipsRequestForEmptyCodes() {
         AtomicInteger calls = new AtomicInteger();
-        TencentDataSource dataSource = new TencentDataSource(url -> {
+        TencentDataSource dataSource = new TencentDataSource((url, policy) -> {
             calls.incrementAndGet();
             return "";
         });

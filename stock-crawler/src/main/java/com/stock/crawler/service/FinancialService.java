@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.model.FinancialIndicator;
 import com.stock.crawler.model.InstitutionalHolding;
 import com.stock.crawler.model.ShareholderConcentration;
+import com.stock.crawler.util.CrawlerRequestPolicy;
 import com.stock.crawler.util.HttpUtils;
 import com.stock.crawler.util.StockCodeUtils;
 import org.slf4j.Logger;
@@ -56,7 +57,10 @@ public class FinancialService {
 
         log.info("fetching_financial_indicators code={}", code);
 
-        String json = HttpUtils.getEastMoney(url, Map.of("Referer", "https://data.eastmoney.com/"));
+        String json = HttpUtils.getEastMoney(
+                url,
+                Map.of("Referer", "https://data.eastmoney.com/"),
+                CrawlerRequestPolicy.interactive());
         return parseFinancialIndicators(json, code);
     }
 
@@ -91,7 +95,10 @@ public class FinancialService {
 
         log.info("fetching_shareholder_concentration code={}", code);
 
-        String json = HttpUtils.getEastMoney(url, Map.of("Referer", "https://data.eastmoney.com/"));
+        String json = HttpUtils.getEastMoney(
+                url,
+                Map.of("Referer", "https://data.eastmoney.com/"),
+                CrawlerRequestPolicy.interactive());
         return parseShareholderConcentration(json, code);
     }
 

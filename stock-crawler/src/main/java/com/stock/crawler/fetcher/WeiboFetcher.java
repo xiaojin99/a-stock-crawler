@@ -3,6 +3,7 @@ package com.stock.crawler.fetcher;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.model.HotItem;
+import com.stock.crawler.util.CrawlerRequestPolicy;
 import com.stock.crawler.util.HttpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 微博热搜获取器
@@ -23,6 +25,15 @@ public class WeiboFetcher implements Fetcher {
     private static final String WEIBO_HOT_SEARCH_URL = "https://weibo.com/ajax/side/hotSearch";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final HotTrendHttpClient httpClient;
+
+    public WeiboFetcher() {
+        this(HttpUtils::get);
+    }
+
+    WeiboFetcher(HotTrendHttpClient httpClient) {
+        this.httpClient = Objects.requireNonNull(httpClient, "httpClient");
+    }
 
     @Override
     public String platform() {
@@ -43,7 +54,8 @@ public class WeiboFetcher implements Fetcher {
                 "Referer", "https://weibo.com/"
         );
 
-        String json = HttpUtils.get(WEIBO_HOT_SEARCH_URL, headers);
+        String json = httpClient.get(
+                WEIBO_HOT_SEARCH_URL, headers, CrawlerRequestPolicy.backgroundNews());
         return parseWeiboResponse(json);
     }
 

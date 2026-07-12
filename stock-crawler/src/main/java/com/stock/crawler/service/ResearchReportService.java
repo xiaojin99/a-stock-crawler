@@ -3,6 +3,7 @@ package com.stock.crawler.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.model.ResearchReport;
+import com.stock.crawler.util.CrawlerRequestPolicy;
 import com.stock.crawler.util.HttpUtils;
 import com.stock.crawler.util.StockCodeUtils;
 import org.slf4j.Logger;
@@ -82,7 +83,8 @@ public class ResearchReportService {
                 "Referer", "https://data.eastmoney.com/"
         );
 
-        String json = HttpUtils.getEastMoney(url, headers);
+        String json = HttpUtils.getEastMoney(
+                url, headers, CrawlerRequestPolicy.backgroundNews());
         ReportResponse response = parseReportResponse(json, code);
         log.info("Fetched {} research reports for stock: {}, total: {}",
                 response.getData().size(), code, response.getTotalCount());
@@ -140,9 +142,10 @@ public class ResearchReportService {
                 report.setPredictThisYearPe(textValue(node, "predictThisYearPe"));
                 report.setEmRatingName(textValue(node, "emRatingName"));
                 report.setResearcher(textValue(node, "researcher"));
-                report.setInfoCode(textValue(node, "infoCode"));
+                String infoCode = textValue(node, "infoCode");
+                report.setInfoCode(infoCode);
                 report.setIndustry(textValue(node, "indvInduName"));
-                report.setEncodeUrl(textValue(node, "encodeUrl"));
+                report.setEncodeUrl(getReportPdfUrl(infoCode));
 
                 reports.add(report);
             }

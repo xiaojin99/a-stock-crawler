@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.exception.MarketDataAccessException;
 import com.stock.crawler.model.KLineData;
 import com.stock.crawler.model.StockQuote;
+import com.stock.crawler.util.CrawlerRequestPolicy;
 import com.stock.crawler.util.HttpUtils;
 import com.stock.crawler.util.ParseUtils;
 import org.slf4j.Logger;
@@ -18,6 +19,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 东方财富数据源
@@ -43,9 +45,15 @@ public class EastMoneyDataSource implements MarketDataSource {
     private static final int PERIOD_MONTH = 103;
 
     private final ObjectMapper objectMapper;
+    private final HttpBodyFetcher httpBodyFetcher;
 
     public EastMoneyDataSource() {
+        this(HttpUtils::getEastMoney);
+    }
+
+    EastMoneyDataSource(HttpBodyFetcher httpBodyFetcher) {
         this.objectMapper = new ObjectMapper();
+        this.httpBodyFetcher = Objects.requireNonNull(httpBodyFetcher, "httpBodyFetcher");
     }
 
     @Override
@@ -82,7 +90,10 @@ public class EastMoneyDataSource implements MarketDataSource {
             int periodCode = getPeriodCode(period);
 
             String url = String.format(EASTMONEY_KLINE_URL, secId, periodCode, days);
-            String body = HttpUtils.getEastMoney(url, Map.of("Referer", "https://quote.eastmoney.com/"));
+            String body = httpBodyFetcher.getEastMoney(
+                    url,
+                    Map.of("Referer", "https://quote.eastmoney.com/"),
+                    CrawlerRequestPolicy.interactive());
             return parseKLineData(stockCode, period, body);
         } catch (IOException ex) {
             throw new MarketDataAccessException(
@@ -193,7 +204,10 @@ public class EastMoneyDataSource implements MarketDataSource {
         try {
             String secId = convertToSecId(quote.getCode());
             String url = String.format(EASTMONEY_QUOTE_URL, secId);
-            String body = HttpUtils.getEastMoney(url, Map.of("Referer", "https://quote.eastmoney.com/"));
+            String body = httpBodyFetcher.getEastMoney(
+                    url,
+                    Map.of("Referer", "https://quote.eastmoney.com/"),
+                    CrawlerRequestPolicy.interactive());
             JsonNode root = objectMapper.readTree(unwrapJsonBody(body));
             JsonNode data = root.path("data");
             if (data.isMissingNode() || data.isNull()) {
@@ -237,5 +251,13 @@ public class EastMoneyDataSource implements MarketDataSource {
     @Override
     public int getPriority() {
         return 100;
+    }
+
+    @FunctionalInterface
+    interface HttpBodyFetcher {
+        String getEastMoney(
+                String url,
+                Map<String, String> headers,
+                CrawlerRequestPolicy policy) throws IOException;
     }
 }

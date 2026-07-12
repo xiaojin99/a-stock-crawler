@@ -3,6 +3,7 @@ package com.stock.crawler.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.model.StockRankItem;
+import com.stock.crawler.util.CrawlerRequestPolicy;
 import com.stock.crawler.util.HttpUtils;
 import com.stock.crawler.util.ParseUtils;
 import com.stock.crawler.util.StockCodeUtils;
@@ -55,7 +56,11 @@ public class StockRankService {
                 "Referer", "https://guba.eastmoney.com/rank/"
         );
 
-        String response = HttpUtils.post(RANK_LIST_API, jsonBody, headers);
+        String response = HttpUtils.post(
+                RANK_LIST_API,
+                jsonBody,
+                headers,
+                CrawlerRequestPolicy.backgroundNews());
         List<StockRankItem> items = parseRankList(response);
 
         // 获取股票详细信息（名称、价格等）
@@ -78,12 +83,8 @@ public class StockRankService {
      * 获取 Top N 人气股
      */
     public List<StockRankItem> getTopN(int n) throws IOException {
-        List<StockRankItem> all = getRankList(100);
         int safeN = StockCodeUtils.clamp(n, 1, 100);
-        if (all.size() <= safeN) {
-            return all;
-        }
-        return all.subList(0, safeN);
+        return getRankList(safeN);
     }
 
     /**
@@ -169,7 +170,8 @@ public class StockRankService {
                 "Referer", "https://guba.eastmoney.com/rank/"
         );
 
-        String response = HttpUtils.getEastMoney(url, headers);
+        String response = HttpUtils.getEastMoney(
+                url, headers, CrawlerRequestPolicy.backgroundNews());
         parseStockInfo(response, items);
     }
 
@@ -191,7 +193,8 @@ public class StockRankService {
             String url = String.format(TENCENT_QUOTE_URL, String.join(",", batch));
             log.debug("Fetching stock info from tencent: {}", url);
 
-            String response = HttpUtils.getWithCharset(url, HttpUtils.GBK);
+            String response = HttpUtils.getWithCharset(
+                    url, HttpUtils.GBK, CrawlerRequestPolicy.backgroundNews());
             resolvedCount += parseTencentStockInfo(response, items);
         }
         return resolvedCount;

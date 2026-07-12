@@ -32,6 +32,7 @@ public class StockQuote implements Serializable {
     private Long ask1Volume;
     private LocalDateTime time;
     private String source;
+    private boolean stale;
 
     public StockQuote() {
     }
@@ -82,6 +83,8 @@ public class StockQuote implements Serializable {
     public void setTime(LocalDateTime time) { this.time = time; }
     public String getSource() { return source; }
     public void setSource(String source) { this.source = source; }
+    public boolean isStale() { return stale; }
+    public void setStale(boolean stale) { this.stale = stale; }
 
     public static class Builder {
         private final StockQuote instance = new StockQuote();
@@ -107,6 +110,7 @@ public class StockQuote implements Serializable {
         public Builder ask1Volume(Long ask1Volume) { instance.ask1Volume = ask1Volume; return this; }
         public Builder time(LocalDateTime time) { instance.time = time; return this; }
         public Builder source(String source) { instance.source = source; return this; }
+        public Builder stale(boolean stale) { instance.stale = stale; return this; }
         public StockQuote build() { return instance; }
     }
 

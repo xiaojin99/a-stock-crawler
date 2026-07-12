@@ -69,6 +69,8 @@ class ResearchReportServiceParseTest {
         assertEquals("AP202603200001234567", first.getInfoCode(), "infoCode 应正确");
         assertEquals("银行", first.getIndustry(), "行业应正确");
         assertEquals("1.58", first.getPredictThisYearEps(), "预测EPS应正确");
+        assertEquals("https://pdf.dfcfw.com/pdf/H3_AP202603200001234567_1.pdf",
+                first.getEncodeUrl(), "研报链接应使用可直接访问的 PDF 地址");
     }
 
     @Test

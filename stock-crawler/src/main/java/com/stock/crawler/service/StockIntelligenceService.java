@@ -8,6 +8,7 @@ import com.stock.crawler.model.ConceptBlockResult;
 import com.stock.crawler.model.FundFlowPoint;
 import com.stock.crawler.model.MarketNewsItem;
 import com.stock.crawler.model.StockBasicInfo;
+import com.stock.crawler.util.CrawlerRequestPolicy;
 import com.stock.crawler.util.HttpUtils;
 import com.stock.crawler.util.ParseUtils;
 import com.stock.crawler.util.StockCodeUtils;
@@ -15,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -40,6 +42,8 @@ public class StockIntelligenceService {
     private static final String EASTMONEY_SLIST_URL = "https://push2.eastmoney.com/api/qt/slist/get";
     private static final String EASTMONEY_FFLOW_MINUTE_URL = "https://push2.eastmoney.com/api/qt/stock/fflow/kline/get";
     private static final String EASTMONEY_FFLOW_DAILY_URL = "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get";
+    private static final String SINA_FFLOW_DAILY_URL =
+            "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow.ssl_qsfx_lscjfb";
     private static final String EASTMONEY_STOCK_NEWS_URL = "https://search-api-web.eastmoney.com/search/jsonp";
     private static final String EASTMONEY_GLOBAL_NEWS_URL = "https://np-weblist.eastmoney.com/comm/web/getFastNewsList";
     private static final String EASTMONEY_STOCK_INFO_URL = "https://push2.eastmoney.com/api/qt/stock/get";
@@ -65,8 +69,10 @@ public class StockIntelligenceService {
         params.put("po", "1");
         params.put("fields", "f12,f14,f3,f128");
 
-        String json = HttpUtils.getEastMoney(EASTMONEY_SLIST_URL + "?" + buildQuery(params),
-                Map.of("Referer", "https://quote.eastmoney.com/"));
+        String json = HttpUtils.getEastMoney(
+                EASTMONEY_SLIST_URL + "?" + buildQuery(params),
+                Map.of("Referer", "https://quote.eastmoney.com/"),
+                CrawlerRequestPolicy.interactive());
         JsonNode root = objectMapper.readTree(json);
         JsonNode diff = root.path("data").path("diff");
 
@@ -97,12 +103,16 @@ public class StockIntelligenceService {
         String code = normalizeCode(stockCode);
         Map<String, String> params = new LinkedHashMap<>();
         params.put("secid", marketCode(code) + "." + code);
+        params.put("lmt", "0");
         params.put("klt", "1");
         params.put("fields1", "f1,f2,f3,f7");
-        params.put("fields2", "f51,f52,f53,f54,f55,f56,f57");
+        params.put("fields2", "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65");
+        params.put("ut", "b2884a393a59ad64002292a3e90d46a5");
 
-        String json = HttpUtils.getEastMoney(EASTMONEY_FFLOW_MINUTE_URL + "?" + buildQuery(params),
-                quoteHeaders());
+        String json = HttpUtils.getEastMoney(
+                EASTMONEY_FFLOW_MINUTE_URL + "?" + buildQuery(params),
+                quoteHeaders(),
+                CrawlerRequestPolicy.interactive());
         JsonNode root = objectMapper.readTree(json);
         return parseFundFlowLines(root.path("data").path("klines"));
     }
@@ -115,14 +125,28 @@ public class StockIntelligenceService {
         int safeLimit = Math.max(1, Math.min(limit, 120));
         Map<String, String> params = new LinkedHashMap<>();
         params.put("secid", marketCode(code) + "." + code);
+        params.put("klt", "101");
         params.put("fields1", "f1,f2,f3,f7");
         params.put("fields2", "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65");
         params.put("lmt", String.valueOf(safeLimit));
+        params.put("ut", "b2884a393a59ad64002292a3e90d46a5");
 
-        String json = HttpUtils.getEastMoney(EASTMONEY_FFLOW_DAILY_URL + "?" + buildQuery(params),
-                quoteHeaders());
-        JsonNode root = objectMapper.readTree(json);
-        return parseFundFlowLines(root.path("data").path("klines"));
+        try {
+            String json = HttpUtils.getEastMoney(
+                    EASTMONEY_FFLOW_DAILY_URL + "?" + buildQuery(params),
+                    quoteHeaders(),
+                    CrawlerRequestPolicy.interactive());
+            JsonNode root = objectMapper.readTree(json);
+            List<FundFlowPoint> points = parseFundFlowLines(root.path("data").path("klines"));
+            if (!points.isEmpty()) {
+                return points;
+            }
+            log.warn("eastmoney_fund_flow_daily_empty stockCode={} fallback=sina", code);
+        } catch (IOException exception) {
+            log.warn("eastmoney_fund_flow_daily_failed stockCode={} fallback=sina message={}",
+                    code, exception.getMessage());
+        }
+        return getSinaFundFlowDaily(code, safeLimit);
     }
 
     /**
@@ -138,8 +162,10 @@ public class StockIntelligenceService {
         params.put("cb", "jQuery_news");
         params.put("param", param);
 
-        String text = HttpUtils.getEastMoney(EASTMONEY_STOCK_NEWS_URL + "?" + buildQuery(params),
-                Map.of("Referer", "https://so.eastmoney.com/"));
+        String text = HttpUtils.getEastMoney(
+                EASTMONEY_STOCK_NEWS_URL + "?" + buildQuery(params),
+                Map.of("Referer", "https://so.eastmoney.com/"),
+                CrawlerRequestPolicy.backgroundNews());
         JsonNode root = objectMapper.readTree(stripJsonp(text));
         JsonNode articles = root.path("result").path("cmsArticleWebOld");
         List<MarketNewsItem> results = new ArrayList<>();
@@ -171,8 +197,10 @@ public class StockIntelligenceService {
         params.put("pageSize", String.valueOf(safePageSize));
         params.put("req_trace", UUID.randomUUID().toString());
 
-        String json = HttpUtils.getEastMoney(EASTMONEY_GLOBAL_NEWS_URL + "?" + buildQuery(params),
-                Map.of("Referer", "https://kuaixun.eastmoney.com/"));
+        String json = HttpUtils.getEastMoney(
+                EASTMONEY_GLOBAL_NEWS_URL + "?" + buildQuery(params),
+                Map.of("Referer", "https://kuaixun.eastmoney.com/"),
+                CrawlerRequestPolicy.backgroundNews());
         JsonNode root = objectMapper.readTree(json);
         JsonNode list = root.path("data").path("fastNewsList");
         List<MarketNewsItem> results = new ArrayList<>();
@@ -202,7 +230,10 @@ public class StockIntelligenceService {
         params.put("fields", "f57,f58,f84,f85,f127,f116,f117,f189,f43");
         params.put("secid", marketCode(code) + "." + code);
 
-        String json = HttpUtils.getEastMoney(EASTMONEY_STOCK_INFO_URL + "?" + buildQuery(params), quoteHeaders());
+        String json = HttpUtils.getEastMoney(
+                EASTMONEY_STOCK_INFO_URL + "?" + buildQuery(params),
+                quoteHeaders(),
+                CrawlerRequestPolicy.interactive());
         JsonNode data = objectMapper.readTree(json).path("data");
         StockBasicInfo info = new StockBasicInfo();
         info.setCode(text(data, "f57"));
@@ -238,10 +269,17 @@ public class StockIntelligenceService {
         form.put("sortType", "");
         form.put("isHLtitle", "true");
 
-        String json = HttpUtils.postForm(CNINFO_ANNOUNCEMENT_URL, form, Map.of(
-                "Referer", "https://www.cninfo.com.cn/new/disclosure",
-                "Origin", "https://www.cninfo.com.cn"
-        ));
+        String json = HttpUtils.postForm(
+                CNINFO_ANNOUNCEMENT_URL,
+                form,
+                Map.of(
+                        "Referer", "https://www.cninfo.com.cn/new/disclosure",
+                        "Origin", "https://www.cninfo.com.cn"),
+                CrawlerRequestPolicy.backgroundNews());
+        return parseAnnouncements(json);
+    }
+
+    List<AnnouncementItem> parseAnnouncements(String json) throws IOException {
         JsonNode announcements = objectMapper.readTree(json).path("announcements");
         List<AnnouncementItem> results = new ArrayList<>();
         if (!announcements.isArray()) {
@@ -249,16 +287,68 @@ public class StockIntelligenceService {
         }
         for (JsonNode item : announcements) {
             String announcementId = text(item, "announcementId");
+            String adjunctUrl = text(item, "adjunctUrl");
             results.add(AnnouncementItem.builder()
                     .title(cleanText(text(item, "announcementTitle")))
                     .type(text(item, "announcementTypeName"))
                     .date(formatCninfoDate(item.path("announcementTime")))
-                    .url(announcementId.isBlank()
-                            ? ""
-                            : "https://www.cninfo.com.cn/new/disclosure/detail?annoId=" + announcementId)
+                    .url(resolveAnnouncementUrl(adjunctUrl, announcementId))
                     .build());
         }
         return results;
+    }
+
+    List<FundFlowPoint> parseSinaDailyFundFlow(String json) throws IOException {
+        JsonNode rows = objectMapper.readTree(json);
+        List<FundFlowPoint> results = new ArrayList<>();
+        if (!rows.isArray()) {
+            return results;
+        }
+        for (JsonNode row : rows) {
+            BigDecimal superNet = ParseUtils.parseBigDecimal(text(row, "r0_net"));
+            BigDecimal largeNet = ParseUtils.parseBigDecimal(text(row, "r1_net"));
+            results.add(FundFlowPoint.builder()
+                    .time(text(row, "opendate"))
+                    .mainNet(superNet.add(largeNet))
+                    .superNet(superNet)
+                    .largeNet(largeNet)
+                    .midNet(ParseUtils.parseBigDecimal(text(row, "r2_net")))
+                    .smallNet(ParseUtils.parseBigDecimal(text(row, "r3_net")))
+                    .build());
+        }
+        return results;
+    }
+
+    private List<FundFlowPoint> getSinaFundFlowDaily(String code, int limit) throws IOException {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("daima", sinaMarketCode(code));
+        params.put("page", "1");
+        params.put("num", String.valueOf(limit));
+        params.put("sort", "opendate");
+        params.put("asc", "0");
+        String json = HttpUtils.get(
+                SINA_FFLOW_DAILY_URL + "?" + buildQuery(params),
+                Map.of(
+                        "Accept", "application/json, text/plain, */*",
+                        "Referer", "https://money.finance.sina.com.cn/moneyflow/"),
+                CrawlerRequestPolicy.interactive());
+        return parseSinaDailyFundFlow(json);
+    }
+
+    private String sinaMarketCode(String code) {
+        return (code.startsWith("6") ? "sh" : "sz") + code;
+    }
+
+    private String resolveAnnouncementUrl(String adjunctUrl, String announcementId) {
+        if (adjunctUrl != null && !adjunctUrl.isBlank()) {
+            String path = adjunctUrl.startsWith("/") ? adjunctUrl.substring(1) : adjunctUrl;
+            return "https://static.cninfo.com.cn/" + path;
+        }
+        if (announcementId == null || announcementId.isBlank()) {
+            return "";
+        }
+        return "https://www.cninfo.com.cn/new/disclosure/detail?announcementId="
+                + encode(announcementId);
     }
 
     private ConceptBlock parseConceptBlock(JsonNode item) {
@@ -317,7 +407,10 @@ public class StockIntelligenceService {
 
     private Map<String, String> fetchCninfoOrgIdMap() {
         try {
-            String json = HttpUtils.get(CNINFO_STOCK_MAP_URL, Map.of("Referer", "https://www.cninfo.com.cn/"));
+            String json = HttpUtils.get(
+                    CNINFO_STOCK_MAP_URL,
+                    Map.of("Referer", "https://www.cninfo.com.cn/"),
+                    CrawlerRequestPolicy.backgroundNews());
             JsonNode stockList = objectMapper.readTree(json).path("stockList");
             Map<String, String> mapping = new LinkedHashMap<>();
             if (stockList.isArray()) {

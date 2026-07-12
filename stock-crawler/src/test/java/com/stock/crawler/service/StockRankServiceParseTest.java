@@ -170,6 +170,25 @@ class StockRankServiceParseTest {
         assertEquals("平安银行", szItem.getStockName());
     }
 
+    @Test
+    @DisplayName("getTopN 应只请求实际需要的数量")
+    void getTopNRequestsOnlyRequestedItemCount() throws Exception {
+        class RecordingStockRankService extends StockRankService {
+            private int requestedPageSize;
+
+            @Override
+            public List<StockRankItem> getRankList(int pageSize) {
+                requestedPageSize = pageSize;
+                return List.of();
+            }
+        }
+        RecordingStockRankService recordingService = new RecordingStockRankService();
+
+        recordingService.getTopN(7);
+
+        assertEquals(7, recordingService.requestedPageSize);
+    }
+
     private String tencentQuoteLine(String code, String name, String price, String changePercent) {
         List<String> fields = new ArrayList<>(Collections.nCopies(33, ""));
         fields.set(1, name);

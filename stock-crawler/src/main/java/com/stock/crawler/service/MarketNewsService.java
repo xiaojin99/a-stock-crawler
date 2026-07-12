@@ -2,17 +2,17 @@ package com.stock.crawler.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.stock.crawler.exception.ProviderRateLimitException;
 import com.stock.crawler.model.MarketHotBoard;
 import com.stock.crawler.model.MarketHotItem;
 import com.stock.crawler.model.MarketNewsItem;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
+import com.stock.crawler.util.CrawlerRequestPolicy;
+import com.stock.crawler.util.HttpUtils;
+import com.stock.crawler.util.StockCodeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -20,9 +20,11 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 市场快讯服务
@@ -42,34 +44,75 @@ public class MarketNewsService {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final ObjectMapper objectMapper;
-    private final OkHttpClient httpClient;
+    private final MarketNewsHttpClient httpClient;
     private final StockIntelligenceService stockIntelligenceService;
 
     private volatile List<MarketNewsItem> cachedHotNews = new ArrayList<>();
     private volatile List<MarketHotBoard> cachedHotBoards = new ArrayList<>();
-    private volatile LocalDateTime hotBoardsRefreshedAt;
+    private volatile Map<MarketNewsSource, List<MarketNewsItem>> cachedNewsBySource = Map.of();
 
     public MarketNewsService() {
+        this(HttpUtils::get, new StockIntelligenceService());
+    }
+
+    MarketNewsService(
+            MarketNewsHttpClient httpClient,
+            StockIntelligenceService stockIntelligenceService) {
         this.objectMapper = new ObjectMapper();
-        this.httpClient = new OkHttpClient.Builder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .readTimeout(Duration.ofSeconds(8))
-                .build();
-        this.stockIntelligenceService = new StockIntelligenceService();
+        this.httpClient = Objects.requireNonNull(httpClient, "httpClient");
+        this.stockIntelligenceService = Objects.requireNonNull(
+                stockIntelligenceService, "stockIntelligenceService");
     }
 
     /**
      * 刷新热点新闻缓存（应由外部定期调用）
      */
-    public void refreshHotNewsCache() {
-        List<MarketNewsItem> eastMoneyNews = fetchEastMoneyGlobalNews();
-        List<MarketNewsItem> clsNews = fetchClsNews();
-        List<MarketNewsItem> baiduNews = fetchBaiduNews();
+    public synchronized void refreshHotNewsCache() {
+        EnumMap<MarketNewsSource, List<MarketNewsItem>> refreshed =
+                new EnumMap<>(MarketNewsSource.class);
+        refreshed.putAll(cachedNewsBySource);
+        refreshSource(refreshed, MarketNewsSource.EASTMONEY_724);
+        refreshSource(refreshed, MarketNewsSource.CLS);
+        refreshSource(refreshed, MarketNewsSource.BAIDU_EXPRESS);
+        cachedNewsBySource = Map.copyOf(refreshed);
+
+        List<MarketNewsItem> eastMoneyNews = sourceSnapshot(
+                refreshed, MarketNewsSource.EASTMONEY_724);
+        List<MarketNewsItem> clsNews = sourceSnapshot(refreshed, MarketNewsSource.CLS);
+        List<MarketNewsItem> baiduNews = sourceSnapshot(
+                refreshed, MarketNewsSource.BAIDU_EXPRESS);
         List<MarketNewsItem> merged = mergeNews(eastMoneyNews, baiduNews, clsNews);
-        cachedHotNews = merged;
+        cachedHotNews = List.copyOf(merged);
         cachedHotBoards = buildBoards(eastMoneyNews, baiduNews, clsNews);
-        hotBoardsRefreshedAt = LocalDateTime.now();
         log.info("market_news_cache_refreshed mergedSize={} boardSize={}", merged.size(), cachedHotBoards.size());
+    }
+
+    /** Fetches one provider independently so callers can persist source-specific snapshots. */
+    public List<MarketNewsItem> fetchNews(MarketNewsSource source, int limit) {
+        Objects.requireNonNull(source, "source");
+        int safeLimit = StockCodeUtils.clamp(limit, 1, MAX_LIMIT);
+        return switch (source) {
+            case EASTMONEY_724 -> fetchEastMoneyGlobalNews(safeLimit);
+            case CLS -> fetchClsNews(safeLimit);
+            case BAIDU_EXPRESS -> fetchBaiduNews(safeLimit);
+        };
+    }
+
+    private void refreshSource(
+            EnumMap<MarketNewsSource, List<MarketNewsItem>> snapshots,
+            MarketNewsSource source) {
+        List<MarketNewsItem> fetched = fetchNews(source, MAX_LIMIT);
+        if (!fetched.isEmpty()) {
+            snapshots.put(source, List.copyOf(fetched));
+        } else if (snapshots.containsKey(source)) {
+            log.warn("market_news_refresh_kept_stale source={}", source);
+        }
+    }
+
+    private List<MarketNewsItem> sourceSnapshot(
+            Map<MarketNewsSource, List<MarketNewsItem>> snapshots,
+            MarketNewsSource source) {
+        return snapshots.getOrDefault(source, List.of());
     }
 
     /**
@@ -79,10 +122,6 @@ public class MarketNewsService {
         String normalizedKeyword = keyword == null ? "" : keyword.trim();
         int safeLimit = sanitizeLimit(limit);
         List<MarketNewsItem> source = cachedHotNews;
-        if (source == null || source.isEmpty()) {
-            source = mergeNews(fetchEastMoneyGlobalNews(), fetchBaiduNews(), fetchClsNews());
-            cachedHotNews = source;
-        }
         List<MarketNewsItem> filtered = new ArrayList<>();
         for (MarketNewsItem item : source) {
             String title = item.getTitle() == null ? "" : item.getTitle();
@@ -105,7 +144,7 @@ public class MarketNewsService {
      */
     public List<MarketHotBoard> listHotBoards(Integer limit) {
         int safeLimit = sanitizeLimit(limit);
-        List<MarketHotBoard> boards = getOrRefreshHotBoards();
+        List<MarketHotBoard> boards = cachedHotBoards;
         List<MarketHotBoard> result = new ArrayList<>();
         for (MarketHotBoard board : boards) {
             List<MarketHotItem> items = board.getItems() == null ? new ArrayList<>() : board.getItems();
@@ -130,34 +169,6 @@ public class MarketNewsService {
                     .build());
         }
         return result;
-    }
-
-    private List<MarketHotBoard> getOrRefreshHotBoards() {
-        List<MarketHotBoard> boards = cachedHotBoards;
-        LocalDateTime now = LocalDateTime.now();
-        boolean cacheExpired = hotBoardsRefreshedAt == null || hotBoardsRefreshedAt.plusSeconds(90).isBefore(now);
-        boolean missingData = boards == null || boards.isEmpty() || hasMissingBoardItems(boards);
-        if (!cacheExpired && !missingData) {
-            return boards;
-        }
-        List<MarketNewsItem> eastMoneyNews = fetchEastMoneyGlobalNews();
-        List<MarketNewsItem> baiduNews = fetchBaiduNews();
-        List<MarketNewsItem> clsNews = fetchClsNews();
-        boards = buildBoards(eastMoneyNews, baiduNews, clsNews);
-        cachedHotBoards = boards;
-        hotBoardsRefreshedAt = now;
-        return boards;
-    }
-
-    private boolean hasMissingBoardItems(List<MarketHotBoard> boards) {
-        for (MarketHotBoard board : boards) {
-            if ("baidu".equals(board.getBoardId())) {
-                if (board.getItems() == null || board.getItems().isEmpty()) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     private int sanitizeLimit(Integer limit) {
@@ -189,46 +200,42 @@ public class MarketNewsService {
                 + (item.getTime() == null ? "" : item.getTime().trim());
     }
 
-    private List<MarketNewsItem> fetchClsNews() {
+    private List<MarketNewsItem> fetchClsNews(int limit) {
         try {
-            Request request = new Request.Builder()
-                    .url(buildClsNewsUrl())
-                    .header("Referer", "https://www.cls.cn/telegraph")
-                    .header("User-Agent", "Mozilla/5.0")
-                    .header("Accept", "application/json, text/plain, */*")
-                    .get()
-                    .build();
-            try (Response response = httpClient.newCall(request).execute()) {
-                if (!response.isSuccessful() || response.body() == null) {
-                    return new ArrayList<>();
-                }
-                JsonNode root = objectMapper.readTree(response.body().string());
-                JsonNode list = root.path("data").path("roll_data");
-                if (!list.isArray()) {
-                    return new ArrayList<>();
-                }
-                List<MarketNewsItem> results = new ArrayList<>();
-                for (JsonNode item : list) {
-                    String content = cleanText(firstNonBlank(
-                            text(item, "content"),
-                            text(item, "brief")));
-                    String title = cleanText(firstNonBlank(
-                            text(item, "title"),
-                            text(item, "brief"),
-                            content));
-                    results.add(MarketNewsItem.builder()
-                            .title(title)
-                            .content(content)
-                            .time(formatEpochSeconds(item.path("ctime").asLong(0L)))
-                            .url(buildClsDetailUrl(item))
-                            .source("财联社")
-                            .build());
-                    if (results.size() >= MAX_LIMIT) {
-                        break;
-                    }
-                }
-                return results;
+            String body = httpClient.get(
+                    buildClsNewsUrl(limit),
+                    Map.of(
+                            "Referer", "https://www.cls.cn/telegraph",
+                            "Accept", "application/json, text/plain, */*"),
+                    CrawlerRequestPolicy.backgroundNews());
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode list = root.path("data").path("roll_data");
+            if (!list.isArray()) {
+                return new ArrayList<>();
             }
+            List<MarketNewsItem> results = new ArrayList<>();
+            for (JsonNode item : list) {
+                String content = cleanText(firstNonBlank(
+                        text(item, "content"),
+                        text(item, "brief")));
+                String title = cleanText(firstNonBlank(
+                        text(item, "title"),
+                        text(item, "brief"),
+                        content));
+                results.add(MarketNewsItem.builder()
+                        .title(title)
+                        .content(content)
+                        .time(formatEpochSeconds(item.path("ctime").asLong(0L)))
+                        .url(buildClsDetailUrl(item))
+                        .source("财联社")
+                        .build());
+                if (results.size() >= limit) {
+                    break;
+                }
+            }
+            return results;
+        } catch (ProviderRateLimitException ex) {
+            throw new MarketNewsRateLimitException(ex);
         } catch (IOException ex) {
             log.warn("market_news_fetch_failed source=cls type=io message={}", ex.getMessage(), ex);
             return new ArrayList<>();
@@ -238,63 +245,58 @@ public class MarketNewsService {
         }
     }
 
-    private List<MarketNewsItem> fetchEastMoneyGlobalNews() {
+    private List<MarketNewsItem> fetchEastMoneyGlobalNews(int limit) {
         try {
-            return stockIntelligenceService.getGlobalNews(MAX_LIMIT);
+            return stockIntelligenceService.getGlobalNews(limit);
+        } catch (ProviderRateLimitException ex) {
+            throw new MarketNewsRateLimitException(ex);
         } catch (Exception ex) {
             log.warn("market_news_fetch_failed source=eastmoney_724 message={}", ex.getMessage());
             return new ArrayList<>();
         }
     }
 
-    private List<MarketNewsItem> fetchBaiduNews() {
+    private List<MarketNewsItem> fetchBaiduNews(int limit) {
         try {
-            Request request = new Request.Builder()
-                    .url(BAIDU_EXPRESS_NEWS_URL)
-                    .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                    .header("Referer", "https://gushitong.baidu.com/")
-                    .header("Accept", "application/json, text/plain, */*")
-                    .header("Accept-Language", "zh-CN,zh;q=0.9")
-                    .get()
-                    .build();
-            try (Response response = httpClient.newCall(request).execute()) {
-                if (!response.isSuccessful() || response.body() == null) {
-                    log.warn("market_news_fetch_failed source=baidu status={}", response.code());
-                    return new ArrayList<>();
-                }
-                String body = response.body().string();
-                JsonNode root = objectMapper.readTree(body);
-                // 尝试大小写两种路径（接口偏移当化）
-                JsonNode list = root.path("Result").path("content").path("list");
-                if (!list.isArray()) {
-                    list = root.path("result").path("content").path("list");
-                }
-                if (!list.isArray()) {
-                    log.debug("market_news_baidu_no_list body_prefix={}",
-                            body.length() > 300 ? body.substring(0, 300) : body);
-                    return new ArrayList<>();
-                }
-                List<MarketNewsItem> results = new ArrayList<>();
-                for (JsonNode item : list) {
-                    String title = text(item, "title");
-                    String content = flattenBaiduContent(item.path("content").path("items"));
-                    long publishTime = item.path("publish_time").asLong(0L);
-                    String normalizedTime = publishTime > 0
-                            ? formatNewsTime(Instant.ofEpochSecond(publishTime))
-                            : "";
-                    results.add(MarketNewsItem.builder()
-                            .title(title)
-                            .content(content)
-                            .time(normalizedTime)
-                            .url(text(item, "loc"))
-                            .source("百度股市通")
-                            .build());
-                    if (results.size() >= MAX_LIMIT) {
-                        break;
-                    }
-                }
-                return results;
+            String body = httpClient.get(
+                    BAIDU_EXPRESS_NEWS_URL,
+                    Map.of(
+                            "Referer", "https://gushitong.baidu.com/",
+                            "Accept", "application/json, text/plain, */*"),
+                    CrawlerRequestPolicy.backgroundNews());
+            JsonNode root = objectMapper.readTree(body);
+            // 尝试大小写两种路径（接口偏移当化）
+            JsonNode list = root.path("Result").path("content").path("list");
+            if (!list.isArray()) {
+                list = root.path("result").path("content").path("list");
             }
+            if (!list.isArray()) {
+                log.debug("market_news_baidu_no_list body_prefix={}",
+                        body.length() > 300 ? body.substring(0, 300) : body);
+                return new ArrayList<>();
+            }
+            List<MarketNewsItem> results = new ArrayList<>();
+            for (JsonNode item : list) {
+                String title = text(item, "title");
+                String content = flattenBaiduContent(item.path("content").path("items"));
+                long publishTime = item.path("publish_time").asLong(0L);
+                String normalizedTime = publishTime > 0
+                        ? formatNewsTime(Instant.ofEpochSecond(publishTime))
+                        : "";
+                results.add(MarketNewsItem.builder()
+                        .title(title)
+                        .content(content)
+                        .time(normalizedTime)
+                        .url(text(item, "loc"))
+                        .source("百度股市通")
+                        .build());
+                if (results.size() >= limit) {
+                    break;
+                }
+            }
+            return results;
+        } catch (ProviderRateLimitException ex) {
+            throw new MarketNewsRateLimitException(ex);
         } catch (IOException ex) {
             log.warn("market_news_fetch_failed source=baidu type=io message={}", ex.getMessage(), ex);
             return new ArrayList<>();
@@ -357,9 +359,9 @@ public class MarketNewsService {
         return sb.toString();
     }
 
-    private String buildClsNewsUrl() {
+    private String buildClsNewsUrl(int limit) {
         return CLS_NEWS_URL
-                + "?rn=" + MAX_LIMIT
+                + "?rn=" + limit
                 + "&lastTime=" + Instant.now().getEpochSecond()
                 + "&name=telegraph";
     }

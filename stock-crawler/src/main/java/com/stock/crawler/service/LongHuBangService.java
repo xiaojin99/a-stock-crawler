@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.model.LongHuBangDetail;
 import com.stock.crawler.model.LongHuBangItem;
+import com.stock.crawler.util.CrawlerRequestPolicy;
 import com.stock.crawler.util.HttpUtils;
 import com.stock.crawler.util.StockCodeUtils;
 import org.slf4j.Logger;
@@ -16,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -56,8 +58,17 @@ public class LongHuBangService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
+    private final LongHuBangHttpClient httpClient;
     private static final Duration CACHE_TTL = Duration.ofMinutes(5);
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
+
+    public LongHuBangService() {
+        this(HttpUtils::getEastMoney);
+    }
+
+    LongHuBangService(LongHuBangHttpClient httpClient) {
+        this.httpClient = Objects.requireNonNull(httpClient, "httpClient");
+    }
 
     private static class CacheEntry {
         final List<LongHuBangItem> items;
@@ -152,7 +163,8 @@ public class LongHuBangService {
         log.info("Fetching longhubang list: pageSize={}, pageNo={}, date={}", pageSize, pageNumber, tradeDate);
 
         Map<String, String> headers = Map.of("Referer", "https://data.eastmoney.com/");
-        String json = HttpUtils.getEastMoney(url, headers);
+        String json = httpClient.getEastMoney(
+                url, headers, CrawlerRequestPolicy.backgroundNews());
 
         return parseLongHuBangResponse(json);
     }
@@ -251,7 +263,8 @@ public class LongHuBangService {
         log.info("Fetching longhubang detail: code={}, date={}, direction={}", code, tradeDate, direction);
 
         Map<String, String> headers = Map.of("Referer", "https://data.eastmoney.com/");
-        String json = HttpUtils.getEastMoney(url, headers);
+        String json = httpClient.getEastMoney(
+                url, headers, CrawlerRequestPolicy.backgroundNews());
 
         return parseDetailResponse(json, direction);
     }

@@ -3,6 +3,7 @@ package com.stock.crawler.fetcher;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.model.HotItem;
+import com.stock.crawler.util.CrawlerRequestPolicy;
 import com.stock.crawler.util.HttpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +12,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 百度热搜获取器
@@ -21,6 +23,15 @@ public class BaiduFetcher implements Fetcher {
     private static final String BAIDU_HOT_URL = "https://top.baidu.com/api/board?platform=wise&tab=realtime";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final HotTrendHttpClient httpClient;
+
+    public BaiduFetcher() {
+        this(HttpUtils::get);
+    }
+
+    BaiduFetcher(HotTrendHttpClient httpClient) {
+        this.httpClient = Objects.requireNonNull(httpClient, "httpClient");
+    }
 
     @Override
     public String platform() {
@@ -40,7 +51,8 @@ public class BaiduFetcher implements Fetcher {
                 "User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)"
         );
 
-        String json = HttpUtils.get(BAIDU_HOT_URL, headers);
+        String json = httpClient.get(
+                BAIDU_HOT_URL, headers, CrawlerRequestPolicy.backgroundNews());
         return parseBaiduResponse(json);
     }
 

@@ -3,6 +3,7 @@ package com.stock.crawler.datasource;
 import com.stock.crawler.exception.MarketDataAccessException;
 import com.stock.crawler.model.KLineData;
 import com.stock.crawler.model.StockQuote;
+import com.stock.crawler.util.CrawlerRequestPolicy;
 import com.stock.crawler.util.HttpUtils;
 import com.stock.crawler.util.ParseUtils;
 import org.slf4j.Logger;
@@ -36,7 +37,7 @@ public class TencentDataSource implements MarketDataSource {
     private final QuoteBodyFetcher quoteBodyFetcher;
 
     public TencentDataSource() {
-        this(url -> HttpUtils.getWithCharset(url, HttpUtils.GBK));
+        this((url, policy) -> HttpUtils.getWithCharset(url, HttpUtils.GBK, policy));
     }
 
     TencentDataSource(QuoteBodyFetcher quoteBodyFetcher) {
@@ -56,7 +57,7 @@ public class TencentDataSource implements MarketDataSource {
         try {
             String codesParam = String.join(",", stockCodes);
             String url = String.format(TENCENT_QUOTE_URL, codesParam);
-            String body = quoteBodyFetcher.fetch(url);
+            String body = quoteBodyFetcher.fetch(url, CrawlerRequestPolicy.interactive());
             validateResponse(body);
             return parseTencentQuotes(body);
         } catch (MarketDataAccessException ex) {
@@ -208,6 +209,6 @@ public class TencentDataSource implements MarketDataSource {
 
     @FunctionalInterface
     interface QuoteBodyFetcher {
-        String fetch(String url) throws IOException;
+        String fetch(String url, CrawlerRequestPolicy policy) throws IOException;
     }
 }

@@ -6,6 +6,7 @@ import com.stock.crawler.model.DataResult;
 import com.stock.crawler.model.FinancialIndicator;
 import com.stock.crawler.model.FundFlowPoint;
 import com.stock.crawler.model.KLineData;
+import com.stock.crawler.model.MarketBreadthSnapshot;
 import com.stock.crawler.model.MarketNewsItem;
 import com.stock.crawler.model.ResearchReport;
 import com.stock.crawler.model.ShareholderConcentration;
@@ -36,11 +37,12 @@ public class DefaultAStockDataClient implements AStockDataClient {
     private final ResearchReportService researchReportService;
     private final StockIntelligenceService stockIntelligenceService;
     private final TradingCalendarService tradingCalendarService;
+    private final MarketBreadthService marketBreadthService;
 
     public DefaultAStockDataClient() {
         this(new StockMarketService(), new TechnicalIndicatorService(), new FinancialService(),
                 new ResearchReportService(), new StockIntelligenceService(),
-                new TradingCalendarService());
+                new TradingCalendarService(), new MarketBreadthService());
     }
 
     public DefaultAStockDataClient(
@@ -50,7 +52,8 @@ public class DefaultAStockDataClient implements AStockDataClient {
             ResearchReportService researchReportService,
             StockIntelligenceService stockIntelligenceService) {
         this(stockMarketService, technicalIndicatorService, financialService,
-                researchReportService, stockIntelligenceService, new TradingCalendarService());
+                researchReportService, stockIntelligenceService, new TradingCalendarService(),
+                new MarketBreadthService());
     }
 
     public DefaultAStockDataClient(
@@ -60,12 +63,26 @@ public class DefaultAStockDataClient implements AStockDataClient {
             ResearchReportService researchReportService,
             StockIntelligenceService stockIntelligenceService,
             TradingCalendarService tradingCalendarService) {
+        this(stockMarketService, technicalIndicatorService, financialService,
+                researchReportService, stockIntelligenceService, tradingCalendarService,
+                new MarketBreadthService());
+    }
+
+    public DefaultAStockDataClient(
+            StockMarketService stockMarketService,
+            TechnicalIndicatorService technicalIndicatorService,
+            FinancialService financialService,
+            ResearchReportService researchReportService,
+            StockIntelligenceService stockIntelligenceService,
+            TradingCalendarService tradingCalendarService,
+            MarketBreadthService marketBreadthService) {
         this.stockMarketService = stockMarketService;
         this.technicalIndicatorService = technicalIndicatorService;
         this.financialService = financialService;
         this.researchReportService = researchReportService;
         this.stockIntelligenceService = stockIntelligenceService;
         this.tradingCalendarService = tradingCalendarService;
+        this.marketBreadthService = marketBreadthService;
     }
 
     @Override
@@ -87,6 +104,11 @@ public class DefaultAStockDataClient implements AStockDataClient {
     @Override
     public DataResult<TradingCalendarSnapshot> getTradingCalendar(YearMonth month) {
         return tradingCalendarService.getTradingCalendar(month);
+    }
+
+    @Override
+    public DataResult<MarketBreadthSnapshot> getMarketBreadth() {
+        return marketBreadthService.getMarketBreadth();
     }
 
     @Override
@@ -191,7 +213,7 @@ public class DefaultAStockDataClient implements AStockDataClient {
 
     @Override
     public DataResult<List<FundFlowPoint>> getFundFlowDaily(String stockCode, int limit) {
-        return wrap("fund-flow-daily:eastmoney-push2his-limited",
+        return wrap("fund-flow-daily:eastmoney-sina-fallback",
                 () -> stockIntelligenceService.getFundFlowDaily(stockCode, limit));
     }
 

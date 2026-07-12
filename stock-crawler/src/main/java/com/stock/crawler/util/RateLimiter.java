@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -14,9 +15,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>参考 a-stock-data 项目的限流阈值（2026-05 社区实测）：</p>
  * <ul>
- *   <li>东方财富 push2：>5次/秒 或 1分钟>=200次 即封</li>
- *   <li>腾讯财经：几乎不限，保守 300ms</li>
- *   <li>新浪财经：较宽松</li>
+ *   <li>东方财富：每 2 秒至多发起一次</li>
+ *   <li>财联社、百度、微博：每 5 秒至多发起一次</li>
+ *   <li>腾讯财经：每 500 毫秒至多发起一次</li>
  * </ul>
  */
 public final class RateLimiter {
@@ -25,13 +26,13 @@ public final class RateLimiter {
 
     /** 各域名的最小请求间隔（毫秒） */
     private static final Map<String, Long> DOMAIN_INTERVALS = Map.of(
-            "eastmoney.com", 1200L,
-            "cls.cn",         1000L,
-            "weibo.com",      1000L,
-            "baidu.com",       500L,
+            "eastmoney.com", 2000L,
+            "cls.cn",         5000L,
+            "weibo.com",      5000L,
+            "baidu.com",       5000L,
             "szse.cn",         500L,
-            "sinajs.cn",       500L,
-            "gtimg.cn",        300L
+            "sinajs.cn",       1000L,
+            "gtimg.cn",        500L
     );
 
     /** 未匹配到域名时的默认最小间隔 */
@@ -56,6 +57,10 @@ public final class RateLimiter {
      * @param url 即将请求的 URL
      */
     public static void throttle(String url) throws IOException {
+        throttleUntil(url, System.nanoTime() + Duration.ofDays(1).toNanos());
+    }
+
+    static void throttleUntil(String url, long deadlineNanos) throws IOException {
         String domain = extractDomain(url);
         long minInterval = DOMAIN_INTERVALS.getOrDefault(domain, DEFAULT_INTERVAL_MS);
         long jitter = (long) (minInterval * JITTER_FACTOR * Math.random());
@@ -63,12 +68,21 @@ public final class RateLimiter {
 
         Object lock = locks.computeIfAbsent(domain, d -> new Object());
         synchronized (lock) {
+            long remainingNanos = deadlineNanos - System.nanoTime();
+            if (remainingNanos <= 0L) {
+                throw new IOException(
+                        "Request deadline exhausted while waiting for domain: " + domain);
+            }
             long now = System.currentTimeMillis();
             Long last = lastCallTime.get(domain);
             if (last != null) {
                 long elapsed = now - last;
                 if (elapsed < targetInterval) {
                     long sleepMs = targetInterval - elapsed;
+                    if (sleepMs >= Duration.ofNanos(remainingNanos).toMillis()) {
+                        throw new IOException(
+                                "Request deadline exhausted while throttling domain: " + domain);
+                    }
                     log.debug("rate_limiter domain={} sleepMs={}", domain, sleepMs);
                     try {
                         Thread.sleep(sleepMs);

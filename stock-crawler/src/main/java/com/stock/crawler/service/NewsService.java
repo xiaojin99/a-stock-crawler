@@ -3,6 +3,7 @@ package com.stock.crawler.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.model.Telegraph;
+import com.stock.crawler.util.CrawlerRequestPolicy;
 import com.stock.crawler.util.HttpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,7 +89,8 @@ public class NewsService {
                 + "?rn=" + DEFAULT_LIMIT
                 + "&lastTime=" + Instant.now().getEpochSecond()
                 + "&name=telegraph";
-        String json = HttpUtils.get(url, headers);
+        String json = HttpUtils.get(
+                url, headers, CrawlerRequestPolicy.backgroundNews());
         JsonNode root = OBJECT_MAPPER.readTree(json);
         JsonNode contentBoxes = root.path("data").path("roll_data");
 

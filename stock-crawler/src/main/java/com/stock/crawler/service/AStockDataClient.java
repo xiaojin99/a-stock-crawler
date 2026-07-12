@@ -6,6 +6,7 @@ import com.stock.crawler.model.DataResult;
 import com.stock.crawler.model.FinancialIndicator;
 import com.stock.crawler.model.FundFlowPoint;
 import com.stock.crawler.model.KLineData;
+import com.stock.crawler.model.MarketBreadthSnapshot;
 import com.stock.crawler.model.MarketNewsItem;
 import com.stock.crawler.model.ResearchReport;
 import com.stock.crawler.model.ShareholderConcentration;
@@ -30,6 +31,8 @@ public interface AStockDataClient {
     DataResult<List<KLineData>> getKLineData(String stockCode, String period, int days);
 
     DataResult<TradingCalendarSnapshot> getTradingCalendar(YearMonth month);
+
+    DataResult<MarketBreadthSnapshot> getMarketBreadth();
 
     DataResult<TechnicalIndicators> getTechnicalIndicators(String stockCode, int days);
 

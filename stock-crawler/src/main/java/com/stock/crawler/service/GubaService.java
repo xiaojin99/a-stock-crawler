@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.model.GubaComment;
 import com.stock.crawler.model.GubaPost;
+import com.stock.crawler.util.CrawlerRequestPolicy;
 import com.stock.crawler.util.HttpUtils;
 import com.stock.crawler.util.StockCodeUtils;
 import org.jsoup.Jsoup;
@@ -56,7 +57,8 @@ public class GubaService {
                 "Referer", "https://guba.eastmoney.com/"
         );
 
-        String html = HttpUtils.getEastMoney(url, headers);
+        String html = HttpUtils.getEastMoney(
+                url, headers, CrawlerRequestPolicy.backgroundNews());
         List<GubaPost> posts = parseEmbeddedJson(html, code);
 
         // 限制返回数量
@@ -189,7 +191,10 @@ public class GubaService {
         String url = String.format(GUBA_POST_URL, stockCode, postId);
         log.info("Fetching post detail: {}", url);
 
-        String html = HttpUtils.getEastMoney(url, Map.of("Referer", "https://guba.eastmoney.com/"));
+        String html = HttpUtils.getEastMoney(
+                url,
+                Map.of("Referer", "https://guba.eastmoney.com/"),
+                CrawlerRequestPolicy.backgroundNews());
         return parsePostDetail(html, stockCode, postId);
     }
 
@@ -313,7 +318,8 @@ public class GubaService {
                 "Referer", "https://guba.eastmoney.com/"
         );
 
-        String json = HttpUtils.getEastMoney(url, headers);
+        String json = HttpUtils.getEastMoney(
+                url, headers, CrawlerRequestPolicy.backgroundNews());
         return parseComments(json, postId);
     }
 

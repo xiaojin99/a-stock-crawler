@@ -2,11 +2,9 @@ package com.stock.crawler.datasource;
 
 import com.stock.crawler.model.KLineData;
 import com.stock.crawler.model.StockQuote;
+import com.stock.crawler.util.CrawlerRequestPolicy;
+import com.stock.crawler.util.HttpUtils;
 import com.stock.crawler.util.ParseUtils;
-import com.stock.crawler.util.RateLimiter;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,7 +22,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * 新浪财经数据源
@@ -42,14 +41,15 @@ public class SinaDataSource implements MarketDataSource {
             "http://quotes.sina.cn/cn/api/jsonp_v2.php/=/CN_MarketDataService.getKLineData?symbol=%s&scale=%d&ma=no&datalen=%d";
     private static final DateTimeFormatter KLINE_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    private final OkHttpClient httpClient;
+    private final HttpBodyFetcher httpBodyFetcher;
     private final ObjectMapper objectMapper;
 
     public SinaDataSource() {
-        this.httpClient = new OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(10, TimeUnit.SECONDS)
-                .build();
+        this(HttpUtils::get);
+    }
+
+    SinaDataSource(HttpBodyFetcher httpBodyFetcher) {
+        this.httpBodyFetcher = Objects.requireNonNull(httpBodyFetcher, "httpBodyFetcher");
         this.objectMapper = new ObjectMapper();
     }
 
@@ -66,22 +66,11 @@ public class SinaDataSource implements MarketDataSource {
         try {
             String codesParam = String.join(",", stockCodes);
             String url = String.format(SINA_QUOTE_URL, System.currentTimeMillis(), codesParam);
-            RateLimiter.throttle(url);
-
-            Request request = new Request.Builder()
-                    .url(url)
-                    .header("Referer", "http://finance.sina.com.cn")
-                    .get()
-                    .build();
-
-            try (Response response = httpClient.newCall(request).execute()) {
-                if (!response.isSuccessful() || response.body() == null) {
-                    log.warn("sina_quote_request_failed statusCode={}", response.code());
-                    return new ArrayList<>();
-                }
-                String body = response.body().string();
-                return parseSinaQuotes(body);
-            }
+            String body = httpBodyFetcher.get(
+                    url,
+                    Map.of("Referer", "http://finance.sina.com.cn"),
+                    CrawlerRequestPolicy.interactive());
+            return parseSinaQuotes(body);
         } catch (IOException ex) {
             log.warn("sina_quote_io_failed message={}", ex.getMessage(), ex);
             return new ArrayList<>();
@@ -157,23 +146,11 @@ public class SinaDataSource implements MarketDataSource {
         try {
             int scale = getSinaScale(period);
             String url = String.format(SINA_KLINE_URL, stockCode, scale, days);
-            RateLimiter.throttle(url);
-
-            Request request = new Request.Builder()
-                    .url(url)
-                    .header("Referer", "http://finance.sina.com.cn")
-                    .get()
-                    .build();
-
-            try (Response response = httpClient.newCall(request).execute()) {
-                if (!response.isSuccessful() || response.body() == null) {
-                    log.warn("sina_kline_request_failed stockCode={} period={} statusCode={}",
-                            stockCode, period, response.code());
-                    return new ArrayList<>();
-                }
-                String body = response.body().string();
-                return parseSinaKLineData(stockCode, period, body);
-            }
+            String body = httpBodyFetcher.get(
+                    url,
+                    Map.of("Referer", "http://finance.sina.com.cn"),
+                    CrawlerRequestPolicy.interactive());
+            return parseSinaKLineData(stockCode, period, body);
         } catch (Exception ex) {
             throw new MarketDataAccessException(
                     getName(), "kline", "Sina K-line request or parsing failed", ex);
@@ -256,21 +233,13 @@ public class SinaDataSource implements MarketDataSource {
         try {
             String encodedKeyword = URLEncoder.encode(keyword.trim(), StandardCharsets.UTF_8);
             String url = String.format(SINA_SUGGEST_URL, encodedKeyword);
-            RateLimiter.throttle(url);
-
-            Request request = new Request.Builder()
-                    .url(url)
-                    .header("Referer", "https://finance.sina.com.cn")
-                    .header("User-Agent", "Mozilla/5.0")
-                    .get()
-                    .build();
-            try (Response response = httpClient.newCall(request).execute()) {
-                if (!response.isSuccessful() || response.body() == null) {
-                    return new ArrayList<>();
-                }
-                String body = response.body().string();
-                return parseSinaSuggestResult(body);
-            }
+            String body = httpBodyFetcher.get(
+                    url,
+                    Map.of(
+                            "Referer", "https://finance.sina.com.cn",
+                            "User-Agent", "Mozilla/5.0"),
+                    CrawlerRequestPolicy.interactive());
+            return parseSinaSuggestResult(body);
         } catch (IOException ex) {
             log.warn("sina_search_io_failed keyword={} message={}", keyword, ex.getMessage(), ex);
             return new ArrayList<>();
@@ -368,5 +337,13 @@ public class SinaDataSource implements MarketDataSource {
     @Override
     public int getPriority() {
         return 3;
+    }
+
+    @FunctionalInterface
+    interface HttpBodyFetcher {
+        String get(
+                String url,
+                Map<String, String> headers,
+                CrawlerRequestPolicy policy) throws IOException;
     }
 }
