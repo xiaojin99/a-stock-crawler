@@ -1,5 +1,7 @@
 package com.stock.crawler.datasource;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.crawler.exception.MarketDataAccessException;
 import com.stock.crawler.model.KLineData;
 import com.stock.crawler.model.StockQuote;
@@ -12,9 +14,12 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -33,6 +38,22 @@ public class TencentDataSource implements MarketDataSource {
     private static final BigDecimal YI_TO_YUAN = new BigDecimal("100000000");
     /** 涨跌幅百分比计算分母 */
     private static final BigDecimal HUNDRED = new BigDecimal("100");
+
+    /**
+     * 腾讯指数日 K 线接口：仅对指数代码(sh000xxx/sz399xxx)启用。
+     * 新浪对中证全指等部分指数只到 2016 年，腾讯覆盖最新行情，作为指数 K 线的可靠来源。
+     * 返回字段顺序为 [date, open, close, high, low, volume]。
+     */
+    private static final String TENCENT_KLINE_URL =
+            "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=%s,day,,,%d,qfq";
+    /**
+     * 腾讯 fqkline 的 count 上限：超过该值接口会返回空响应。
+     * 约 8 年日K(2000 根)，足够聚合月K/年K；上层 requiredDailyBars 可能远超此值，这里兜底。
+     */
+    private static final int TENCENT_KLINE_MAX_COUNT = 2000;
+    private static final DateTimeFormatter KLINE_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final QuoteBodyFetcher quoteBodyFetcher;
 
@@ -182,13 +203,75 @@ public class TencentDataSource implements MarketDataSource {
 
     @Override
     public List<KLineData> getKLineData(String stockCode, String period, int days) {
-        // 腾讯数据源不支持 K 线，由 Baidu/Sina/EastMoney 数据源兜底
-        return new ArrayList<>();
+        // 腾讯仅对指数提供日 K 线：股票 K 线仍由 Baidu/Sina/EastMoney 提供，保持原有行为。
+        if (!isIndexCode(stockCode) || !"day".equals(normalizePeriod(period))) {
+            return new ArrayList<>();
+        }
+        try {
+            int count = Math.min(Math.max(1, days), TENCENT_KLINE_MAX_COUNT);
+            String url = String.format(TENCENT_KLINE_URL, stockCode, count);
+            String body = HttpUtils.get(url, Map.of(), CrawlerRequestPolicy.interactive());
+            return parseTencentKLineData(stockCode, period, body);
+        } catch (Exception ex) {
+            log.warn("tencent_kline_failed stockCode={} period={} days={} message={}",
+                    stockCode, period, days, ex.getMessage(), ex);
+            return new ArrayList<>();
+        }
     }
 
     @Override
     public boolean supportsKLinePeriod(String period) {
-        return false;
+        return "day".equals(normalizePeriod(period));
+    }
+
+    /**
+     * 解析腾讯 K 线响应。
+     * 结构：{@code data.{stockCode}.day = [[date, open, close, high, low, volume], ...]}
+     * 注意腾讯字段顺序是 date/open/close/high/low，与 KLineData 的 open/high/low/close 不同。
+     */
+    private List<KLineData> parseTencentKLineData(String stockCode, String period, String body) {
+        List<KLineData> klineList = new ArrayList<>();
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode dayArray = root.path("data").path(stockCode).path("day");
+            if (!dayArray.isArray()) {
+                return klineList;
+            }
+            for (JsonNode row : dayArray) {
+                if (!row.isArray() || row.size() < 6) {
+                    continue;
+                }
+                klineList.add(KLineData.builder()
+                        .code(stockCode)
+                        .date(LocalDate.parse(row.get(0).asText(), KLINE_DATE))
+                        .open(ParseUtils.parseBigDecimal(row.get(1).asText()))
+                        .close(ParseUtils.parseBigDecimal(row.get(2).asText()))
+                        .high(ParseUtils.parseBigDecimal(row.get(3).asText()))
+                        .low(ParseUtils.parseBigDecimal(row.get(4).asText()))
+                        .volume(ParseUtils.parseBigDecimal(row.get(5).asText()).longValue())
+                        .period(period)
+                        .build());
+            }
+        } catch (Exception ex) {
+            log.warn("tencent_kline_parse_failed stockCode={} period={} message={}",
+                    stockCode, period, ex.getMessage(), ex);
+        }
+        return klineList;
+    }
+
+    private boolean isIndexCode(String stockCode) {
+        if (stockCode == null) {
+            return false;
+        }
+        String code = stockCode.trim().toLowerCase();
+        return code.matches("^sh000\\d{3}$") || code.matches("^sz399\\d{3}$");
+    }
+
+    private String normalizePeriod(String period) {
+        if (period == null || period.isBlank()) {
+            return "day";
+        }
+        return period.trim().toLowerCase();
     }
 
     @Override

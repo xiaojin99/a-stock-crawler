@@ -21,6 +21,10 @@ public class MarketBreadthSnapshot implements Serializable {
     private final int limitDownCount;
     private final int strongUpCount;
     private final int strongDownCount;
+    /**
+     * 全市场精确平均涨跌幅。聚合分布接口无法提供该值时为 {@code null}，
+     * 调用方不得使用区间中点估算。
+     */
     private final BigDecimal averageChangePercent;
 
     public MarketBreadthSnapshot(
