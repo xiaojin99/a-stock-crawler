@@ -52,6 +52,7 @@ public class TencentDataSource implements MarketDataSource {
      */
     private static final int TENCENT_KLINE_MAX_COUNT = 2000;
     private static final DateTimeFormatter KLINE_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter QUOTE_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -156,24 +157,29 @@ public class TencentDataSource implements MarketDataSource {
                     continue;
                 }
 
+                BigDecimal price = ParseUtils.parseRequiredBigDecimal(fields[3]);
+                BigDecimal preClose = ParseUtils.parseRequiredBigDecimal(fields[4]);
+                BigDecimal open = ParseUtils.parseRequiredBigDecimal(fields[5]);
+                BigDecimal high = ParseUtils.parseRequiredBigDecimal(fields[33]);
+                BigDecimal low = ParseUtils.parseRequiredBigDecimal(fields[34]);
+                validateQuotePrices(price, preClose, open, high, low);
+
                 StockQuote quote = StockQuote.builder()
                         .code(code)
                         .name(fields[1])
-                        .price(ParseUtils.parseBigDecimal(fields[3]))
-                        .preClose(ParseUtils.parseBigDecimal(fields[4]))
-                        .open(ParseUtils.parseBigDecimal(fields[5]))
-                        .high(ParseUtils.parseBigDecimal(fields[33]))
-                        .low(ParseUtils.parseBigDecimal(fields[34]))
-                        .volume(ParseUtils.parseLong(fields[6]) * 100)         // 手 -> 股
+                        .price(price)
+                        .preClose(preClose)
+                        .open(open)
+                        .high(high)
+                        .low(low)
+                        .volume(Math.multiplyExact(ParseUtils.parseRequiredLong(fields[6]), 100)) // 手 -> 股
                         .amount(parseOptionalBigDecimal(fields, 37, WAN_TO_YUAN)) // 万 -> 元
-                        .change(ParseUtils.parseBigDecimal(fields[31]))
-                        .changePercent(ParseUtils.parseBigDecimal(fields[32]))
                         .turnoverRate(parseOptionalBigDecimal(fields, 38, null))
                         .pe(parseOptionalBigDecimal(fields, 39, null))
                         .marketCap(parseOptionalBigDecimal(fields, 44, YI_TO_YUAN))
                         .pb(parseOptionalBigDecimal(fields, 46, null))
                         .source("Tencent")
-                        .time(LocalDateTime.now())
+                        .time(LocalDateTime.parse(fields[30], QUOTE_TIME))
                         .build();
 
                 // 计算涨跌额和涨跌幅（与 SinaDataSource 逻辑一致）
@@ -197,8 +203,26 @@ public class TencentDataSource implements MarketDataSource {
         if (fields.length <= index || fields[index] == null || fields[index].isBlank()) {
             return null;
         }
-        BigDecimal value = ParseUtils.parseBigDecimal(fields[index]);
+        BigDecimal value = ParseUtils.parseNullableBigDecimal(fields[index]);
+        if (value == null) {
+            return null;
+        }
         return multiplier == null ? value : value.multiply(multiplier);
+    }
+
+    private void validateQuotePrices(
+            BigDecimal price,
+            BigDecimal preClose,
+            BigDecimal open,
+            BigDecimal high,
+            BigDecimal low) {
+        if (price.signum() <= 0 || preClose.signum() <= 0
+                || open.signum() < 0 || high.signum() < 0 || low.signum() < 0) {
+            throw new IllegalArgumentException("Tencent quote contains invalid price values");
+        }
+        if (high.signum() > 0 && low.signum() > 0 && high.compareTo(low) < 0) {
+            throw new IllegalArgumentException("Tencent quote high price is below low price");
+        }
     }
 
     @Override
