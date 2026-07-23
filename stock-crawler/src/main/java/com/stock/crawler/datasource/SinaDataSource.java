@@ -47,7 +47,8 @@ public class SinaDataSource implements MarketDataSource {
     private final ObjectMapper objectMapper;
 
     public SinaDataSource() {
-        this(HttpUtils::get);
+        // 新浪行情与搜索接口返回 GBK 编码，必须按 GBK 解码，否则中文名称乱码
+        this((url, headers, policy) -> HttpUtils.getWithCharset(url, headers, HttpUtils.GBK, policy));
     }
 
     SinaDataSource(HttpBodyFetcher httpBodyFetcher) {
@@ -115,6 +116,11 @@ public class SinaDataSource implements MarketDataSource {
                 BigDecimal open = ParseUtils.parseRequiredBigDecimal(fields[1]);
                 BigDecimal high = ParseUtils.parseRequiredBigDecimal(fields[4]);
                 BigDecimal low = ParseUtils.parseRequiredBigDecimal(fields[5]);
+                if (isUnavailableQuoteSnapshot(price, preClose)) {
+                    log.debug("sina_quote_unavailable_snapshot code={} price={} preClose={}",
+                            code, price, preClose);
+                    continue;
+                }
                 validateQuotePrices(price, preClose, open, high, low);
 
                 StockQuote quote = StockQuote.builder()
@@ -156,13 +162,17 @@ public class SinaDataSource implements MarketDataSource {
             BigDecimal open,
             BigDecimal high,
             BigDecimal low) {
-        if (price.signum() <= 0 || preClose.signum() <= 0
+        if (price.signum() < 0 || preClose.signum() < 0
                 || open.signum() < 0 || high.signum() < 0 || low.signum() < 0) {
             throw new IllegalArgumentException("Sina quote contains invalid price values");
         }
         if (high.signum() > 0 && low.signum() > 0 && high.compareTo(low) < 0) {
             throw new IllegalArgumentException("Sina quote high price is below low price");
         }
+    }
+
+    private boolean isUnavailableQuoteSnapshot(BigDecimal price, BigDecimal preClose) {
+        return price.signum() == 0 || preClose.signum() == 0;
     }
 
     @Override

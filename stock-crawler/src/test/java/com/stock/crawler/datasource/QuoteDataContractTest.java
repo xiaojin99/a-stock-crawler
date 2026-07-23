@@ -66,6 +66,22 @@ class QuoteDataContractTest {
         assertTrue(dataSource.getRealTimeQuotes(List.of("sh600519")).isEmpty());
     }
 
+    @Test
+    @DisplayName("新浪开盘前零价格快照应跳过且不生成报价")
+    void sinaQuoteSkipsPreOpenZeroPriceSnapshot() {
+        String[] fields = sinaFields();
+        fields[1] = "0.00";
+        fields[3] = "0.00";
+        fields[4] = "0.00";
+        fields[5] = "0.00";
+        fields[30] = "2026-07-13";
+        fields[31] = "09:00:33";
+        SinaDataSource dataSource = new SinaDataSource(
+                (url, headers, policy) -> "var hq_str_sh600519=\"" + String.join(",", fields) + "\";");
+
+        assertTrue(dataSource.getRealTimeQuotes(List.of("sh600519")).isEmpty());
+    }
+
     private String[] tencentFields() {
         String[] fields = new String[47];
         Arrays.fill(fields, "");
