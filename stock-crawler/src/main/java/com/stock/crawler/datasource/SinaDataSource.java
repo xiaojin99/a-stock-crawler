@@ -40,12 +40,15 @@ public class SinaDataSource implements MarketDataSource {
     private static final String SINA_KLINE_URL =
             "http://quotes.sina.cn/cn/api/jsonp_v2.php/=/CN_MarketDataService.getKLineData?symbol=%s&scale=%d&ma=no&datalen=%d";
     private static final DateTimeFormatter KLINE_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter QUOTE_TIME =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final HttpBodyFetcher httpBodyFetcher;
     private final ObjectMapper objectMapper;
 
     public SinaDataSource() {
-        this(HttpUtils::get);
+        // 新浪行情与搜索接口返回 GBK 编码，必须按 GBK 解码，否则中文名称乱码
+        this((url, headers, policy) -> HttpUtils.getWithCharset(url, headers, HttpUtils.GBK, policy));
     }
 
     SinaDataSource(HttpBodyFetcher httpBodyFetcher) {
@@ -108,22 +111,34 @@ public class SinaDataSource implements MarketDataSource {
                     continue;
                 }
 
+                BigDecimal price = ParseUtils.parseRequiredBigDecimal(fields[3]);
+                BigDecimal preClose = ParseUtils.parseRequiredBigDecimal(fields[2]);
+                BigDecimal open = ParseUtils.parseRequiredBigDecimal(fields[1]);
+                BigDecimal high = ParseUtils.parseRequiredBigDecimal(fields[4]);
+                BigDecimal low = ParseUtils.parseRequiredBigDecimal(fields[5]);
+                if (isUnavailableQuoteSnapshot(price, preClose)) {
+                    log.debug("sina_quote_unavailable_snapshot code={} price={} preClose={}",
+                            code, price, preClose);
+                    continue;
+                }
+                validateQuotePrices(price, preClose, open, high, low);
+
                 StockQuote quote = StockQuote.builder()
                         .code(code)
                         .name(fields[0])
-                        .open(ParseUtils.parseBigDecimal(fields[1]))
-                        .preClose(ParseUtils.parseBigDecimal(fields[2]))
-                        .price(ParseUtils.parseBigDecimal(fields[3]))
-                        .high(ParseUtils.parseBigDecimal(fields[4]))
-                        .low(ParseUtils.parseBigDecimal(fields[5]))
-                        .volume(ParseUtils.parseLong(fields[8]))
-                        .amount(ParseUtils.parseBigDecimal(fields[9]))
-                        .bid1Price(ParseUtils.parseBigDecimal(fields[10]))
-                        .bid1Volume(ParseUtils.parseLong(fields[11]))
-                        .ask1Price(ParseUtils.parseBigDecimal(fields[20]))
-                        .ask1Volume(ParseUtils.parseLong(fields[21]))
+                        .open(open)
+                        .preClose(preClose)
+                        .price(price)
+                        .high(high)
+                        .low(low)
+                        .volume(ParseUtils.parseRequiredLong(fields[8]))
+                        .amount(ParseUtils.parseRequiredBigDecimal(fields[9]))
+                        .bid1Price(ParseUtils.parseNullableBigDecimal(fields[10]))
+                        .bid1Volume(ParseUtils.parseNullableLong(fields[11]))
+                        .ask1Price(ParseUtils.parseNullableBigDecimal(fields[20]))
+                        .ask1Volume(ParseUtils.parseNullableLong(fields[21]))
                         .source("Sina")
-                        .time(LocalDateTime.now())
+                        .time(LocalDateTime.parse(fields[30] + " " + fields[31], QUOTE_TIME))
                         .build();
 
                 // 计算涨跌
@@ -139,6 +154,25 @@ public class SinaDataSource implements MarketDataSource {
             }
         }
         return quotes;
+    }
+
+    private void validateQuotePrices(
+            BigDecimal price,
+            BigDecimal preClose,
+            BigDecimal open,
+            BigDecimal high,
+            BigDecimal low) {
+        if (price.signum() < 0 || preClose.signum() < 0
+                || open.signum() < 0 || high.signum() < 0 || low.signum() < 0) {
+            throw new IllegalArgumentException("Sina quote contains invalid price values");
+        }
+        if (high.signum() > 0 && low.signum() > 0 && high.compareTo(low) < 0) {
+            throw new IllegalArgumentException("Sina quote high price is below low price");
+        }
+    }
+
+    private boolean isUnavailableQuoteSnapshot(BigDecimal price, BigDecimal preClose) {
+        return price.signum() == 0 || preClose.signum() == 0;
     }
 
     @Override

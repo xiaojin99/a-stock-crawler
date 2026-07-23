@@ -76,12 +76,27 @@ public final class KLineAggregator {
     }
 
     private static boolean hasRequiredFields(KLineData kline) {
-        return kline != null
-                && kline.getDate() != null
-                && kline.getOpen() != null
-                && kline.getHigh() != null
-                && kline.getLow() != null
-                && kline.getClose() != null;
+        if (kline == null
+                || kline.getDate() == null
+                || !isPositive(kline.getOpen())
+                || !isPositive(kline.getHigh())
+                || !isPositive(kline.getLow())
+                || !isPositive(kline.getClose())) {
+            return false;
+        }
+        if (kline.getHigh().compareTo(kline.getLow()) < 0
+                || kline.getHigh().compareTo(kline.getOpen()) < 0
+                || kline.getHigh().compareTo(kline.getClose()) < 0
+                || kline.getLow().compareTo(kline.getOpen()) > 0
+                || kline.getLow().compareTo(kline.getClose()) > 0) {
+            return false;
+        }
+        return (kline.getVolume() == null || kline.getVolume() >= 0)
+                && (kline.getAmount() == null || kline.getAmount().signum() >= 0);
+    }
+
+    private static boolean isPositive(BigDecimal value) {
+        return value != null && value.signum() > 0;
     }
 
     private static Object bucketKey(KLineData kline, String period) {

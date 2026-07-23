@@ -102,8 +102,18 @@ public final class HttpUtils {
             String url,
             Charset charset,
             CrawlerRequestPolicy policy) throws IOException {
-        Request request = defaultGetBuilder(url).get().build();
-        return new String(executeBytes(request, url, policy), charset);
+        return getWithCharset(url, null, charset, policy);
+    }
+
+    /** Executes a charset-aware GET with headers and explicit timeout and attempt bounds. */
+    public static String getWithCharset(
+            String url,
+            Map<String, String> headers,
+            Charset charset,
+            CrawlerRequestPolicy policy) throws IOException {
+        Request.Builder builder = defaultGetBuilder(url);
+        addHeaders(builder, headers);
+        return new String(executeBytes(builder.build(), url, policy), charset);
     }
 
     /** Downloads bytes with the compatibility policy. */

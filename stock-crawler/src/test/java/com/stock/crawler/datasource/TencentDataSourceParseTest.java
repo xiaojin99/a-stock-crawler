@@ -33,6 +33,7 @@ class TencentDataSourceParseTest {
         fields[4] = "1252.10";
         fields[5] = "1260.00";
         fields[6] = "12345";
+        fields[30] = "20260713145958";
         fields[31] = "19.00";
         fields[32] = "1.52";
         fields[33] = "1280.00";
@@ -84,6 +85,7 @@ class TencentDataSourceParseTest {
         fields[4] = "1291.91";
         fields[5] = "1292.70";
         fields[6] = "41586";
+        fields[30] = "20260713145958";
         fields[31] = "-20.81";
         fields[32] = "-1.61";
         fields[33] = "1292.70";

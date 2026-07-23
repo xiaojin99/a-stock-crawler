@@ -137,6 +137,17 @@ class KLineAggregatorTest {
         assertNull(yearly.getFirst().getChangePercent());
     }
 
+    @Test
+    @DisplayName("零价格、负价格和不一致 OHLC 不应进入聚合结果")
+    void rejectsInvalidPriceContracts() {
+        KLineData zeroClose = kline("2025-01-02", "10", "11", "9", "0", 1L, "1", "1");
+        KLineData negativeLow = kline("2025-01-03", "10", "11", "-1", "10", 1L, "1", "1");
+        KLineData highBelowClose = kline("2025-01-04", "10", "11", "9", "12", 1L, "1", "1");
+
+        assertEquals(List.of(), KLineAggregator.aggregate(
+                List.of(zeroClose, negativeLow, highBelowClose), "day", 3));
+    }
+
     private KLineData kline(
             String date,
             String open,
